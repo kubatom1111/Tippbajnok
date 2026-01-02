@@ -16,6 +16,7 @@ export const MatchList: React.FC<MatchListProps> = ({ matches, currentUser, isAd
 
   const handleDelete = (matchId: string) => {
       if (confirm('Biztosan törölni szeretnéd ezt a mérkőzést?')) {
+          console.log("Törlés:", matchId);
           alert("Törlés funkció hamarosan.");
       }
   }
