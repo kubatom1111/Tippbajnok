@@ -1,4 +1,4 @@
-import { User, Championship, Match, Bet, MatchResult } from './types';
+import { User, Championship, Match, Bet, MatchResult, ChatMessage } from './types';
 
 const KEYS = {
   USERS: 'ht_v2_users',
@@ -7,6 +7,7 @@ const KEYS = {
   BETS: 'ht_v2_bets',
   RESULTS: 'ht_v2_results',
   SESSION: 'ht_v2_session',
+  MESSAGES: 'ht_v2_messages',
 };
 
 // Utils
@@ -105,4 +106,34 @@ export const closeMatch = async (result: MatchResult) => {
 export const getAllUsers = () => {
     const users = load<User>(KEYS.USERS);
     return users.reduce((acc, u) => ({...acc, [u.id]: u.username}), {} as Record<string, string>);
-}
+};
+
+// Chat
+export const getMessages = async (champId: string) => {
+  // Nem kell delay a chathez, hogy gyors legyen
+  return load<ChatMessage>(KEYS.MESSAGES)
+    .filter(m => m.championshipId === champId)
+    .sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+};
+
+export const sendMessage = async (msg: Omit<ChatMessage, 'id'>) => {
+  const list = load<ChatMessage>(KEYS.MESSAGES);
+  list.push({ ...msg, id: crypto.randomUUID() });
+  save(KEYS.MESSAGES, list);
+};
+
+// Stats
+export const getMatchStats = (matchId: string) => {
+  const bets = getBets(matchId);
+  const stats: Record<string, Record<string, number>> = {};
+  
+  bets.forEach(bet => {
+    Object.entries(bet.answers).forEach(([qId, answer]) => {
+      if (!stats[qId]) stats[qId] = {};
+      const val = String(answer);
+      stats[qId][val] = (stats[qId][val] || 0) + 1;
+    });
+  });
+
+  return { stats, totalBets: bets.length };
+};

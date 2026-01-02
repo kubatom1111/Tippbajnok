@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { User, Championship, Match, QuestionType } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Championship, Match, QuestionType, ChatMessage } from './types';
 import * as db from './storage';
-import { Trophy, Plus, LogOut, ChevronRight, User as UserIcon, Calendar, CheckCircle, Lock } from 'lucide-react';
+import { Trophy, Plus, LogOut, ChevronRight, User as UserIcon, Calendar, CheckCircle, Lock, MessageSquare, Send, Activity } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -169,7 +169,7 @@ function Dashboard({ user, onOpenChamp, onLogout }: { user: User, onOpenChamp: (
 }
 
 function ChampionshipView({ user, champ, onBack, triggerRefresh }: { user: User, champ: Championship, onBack: () => void, triggerRefresh: number }) {
-  const [tab, setTab] = useState<'MATCHES' | 'TABLE'>('MATCHES');
+  const [tab, setTab] = useState<'MATCHES' | 'TABLE' | 'CHAT'>('MATCHES');
   const [matches, setMatches] = useState<Match[]>([]);
   const [showCreate, setShowCreate] = useState(false);
 
@@ -199,6 +199,7 @@ function ChampionshipView({ user, champ, onBack, triggerRefresh }: { user: User,
       <div className="flex gap-4 border-b border-white/10 mb-6">
         <button onClick={() => setTab('MATCHES')} className={`pb-3 text-sm font-medium transition-colors ${tab === 'MATCHES' ? 'text-primary border-b-2 border-primary' : 'text-muted hover:text-white'}`}>Mérkőzések</button>
         <button onClick={() => setTab('TABLE')} className={`pb-3 text-sm font-medium transition-colors ${tab === 'TABLE' ? 'text-primary border-b-2 border-primary' : 'text-muted hover:text-white'}`}>Tabella</button>
+        <button onClick={() => setTab('CHAT')} className={`pb-3 text-sm font-medium transition-colors ${tab === 'CHAT' ? 'text-primary border-b-2 border-primary' : 'text-muted hover:text-white'}`}>Üzenőfal</button>
       </div>
 
       {tab === 'MATCHES' ? (
@@ -206,8 +207,10 @@ function ChampionshipView({ user, champ, onBack, triggerRefresh }: { user: User,
           {matches.length === 0 ? <div className="text-center py-10 text-muted">Nincsenek még meccsek rögzítve.</div> : 
            matches.map(m => <MatchCard key={m.id} match={m} user={user} isAdmin={isAdmin} refresh={load} />)}
         </div>
-      ) : (
+      ) : tab === 'TABLE' ? (
         <Leaderboard champ={champ} />
+      ) : (
+        <ChatTab user={user} champ={champ} />
       )}
 
       {showCreate && <CreateMatchModal champId={champ.id} onClose={() => setShowCreate(false)} onSave={handleMatchCreate} />}
@@ -219,6 +222,7 @@ function MatchCard({ match, user, isAdmin, refresh }: { match: Match, user: User
   const [hasBet, setHasBet] = useState(false);
   const [points, setPoints] = useState<number | null>(null);
   const [modalMode, setModalMode] = useState<'BET' | 'RESULT' | null>(null);
+  const [stats, setStats] = useState<any>(null);
 
   const start = new Date(match.startTime);
   const isLocked = new Date() > start;
@@ -237,6 +241,12 @@ function MatchCard({ match, user, isAdmin, refresh }: { match: Match, user: User
         setPoints(p);
       }
     }
+    
+    // Statisztika betöltése ha tippelt vagy vége
+    if (myBet || isFinished || isLocked) {
+      setStats(db.getMatchStats(match.id));
+    }
+
   }, [match, user, isFinished]);
 
   return (
@@ -259,6 +269,28 @@ function MatchCard({ match, user, isAdmin, refresh }: { match: Match, user: User
           <div className="text-sm text-muted font-bold px-4">VS</div>
           <div className="text-lg font-bold text-white text-right">{match.player2}</div>
         </div>
+        
+        {/* Statisztikák megjelenítése */}
+        {stats && (
+          <div className="pl-3 mb-4 space-y-2">
+            <div className="text-[10px] text-muted uppercase font-bold tracking-wider mb-2 flex items-center gap-1"><Activity size={10} /> Tippek megoszlása ({stats.totalBets})</div>
+            {match.questions.slice(0, 1).map(q => { // Csak az első kérdést mutatjuk preview-nak
+              const qStats = stats.stats[q.id] || {};
+              const total = stats.totalBets || 1;
+              if(q.type === QuestionType.WINNER) {
+                const p1P = Math.round(((qStats[match.player1] || 0) / total) * 100);
+                const p2P = Math.round(((qStats[match.player2] || 0) / total) * 100);
+                return (
+                  <div key={q.id} className="w-full h-2 bg-black/30 rounded-full overflow-hidden flex">
+                    <div style={{width: `${p1P}%`}} className="h-full bg-primary/70" />
+                    <div style={{width: `${p2P}%`}} className="h-full bg-white/30" />
+                  </div>
+                )
+              }
+              return null;
+            })}
+          </div>
+        )}
 
         <div className="flex justify-between items-center pl-3 pt-4 border-t border-white/5">
           <div className="text-xs text-muted">{match.questions.length} kérdés</div>
@@ -279,6 +311,69 @@ function MatchCard({ match, user, isAdmin, refresh }: { match: Match, user: User
       {modalMode === 'BET' && <BetModal match={match} user={user} onClose={() => { setModalMode(null); refresh(); }} />}
       {modalMode === 'RESULT' && <ResultModal match={match} onClose={() => { setModalMode(null); refresh(); }} />}
     </>
+  );
+}
+
+function ChatTab({ user, champ }: { user: User, champ: Championship }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [text, setText] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const load = async () => {
+    setMessages(await db.getMessages(champ.id));
+  };
+
+  useEffect(() => { 
+    load(); 
+    const interval = setInterval(load, 2000); // Polling chat
+    return () => clearInterval(interval);
+  }, [champ.id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const send = async () => {
+    if (!text.trim()) return;
+    await db.sendMessage({
+      championshipId: champ.id,
+      userId: user.id,
+      username: user.username,
+      text: text,
+      timestamp: new Date().toISOString()
+    });
+    setText('');
+    load();
+  };
+
+  return (
+    <div className="flex flex-col h-[60vh] bg-surface rounded-xl border border-white/10 overflow-hidden">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.length === 0 && <div className="text-center text-muted text-sm mt-10">Még nincs üzenet. Kezdj el beszélgetni!</div>}
+        {messages.map(m => (
+          <div key={m.id} className={`flex flex-col ${m.userId === user.id ? 'items-end' : 'items-start'}`}>
+            <div className={`max-w-[80%] p-3 rounded-lg text-sm ${m.userId === user.id ? 'bg-primary text-white rounded-br-none' : 'bg-white/10 text-white rounded-bl-none'}`}>
+              <div className="text-[10px] opacity-50 font-bold mb-1">{m.username}</div>
+              {m.text}
+            </div>
+            <div className="text-[10px] text-muted mt-1">{new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+      <div className="p-3 border-t border-white/10 bg-black/20 flex gap-2">
+        <input 
+          className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-primary outline-none"
+          placeholder="Írj valamit..."
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && send()}
+        />
+        <button onClick={send} className="bg-primary hover:bg-blue-600 text-white p-2 rounded-lg transition-colors">
+          <Send size={18} />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -373,18 +468,55 @@ function CreateMatchModal({ champId, onClose, onSave }: { champId: string, onClo
     onSave({ championshipId: champId, player1: p1, player2: p2, startTime: new Date(date).toISOString(), status: 'SCHEDULED', questions });
   };
 
+  const applyPreset = (type: 'FOOTBALL' | 'F1' | 'DARTS') => {
+    if(!p1 || !p2 || !date) { alert('Előbb töltsd ki a csapatokat és dátumot!'); return; }
+    
+    let questions: any[] = [];
+    if(type === 'FOOTBALL') {
+       questions = [
+         { id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Mérkőzés győztese', points: 2, options: [p1, p2, 'Döntetlen'] },
+         { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Pontos végeredmény', points: 5 },
+         { id: crypto.randomUUID(), type: QuestionType.OVER_UNDER, label: 'Gólok száma (2.5)', points: 1 },
+       ];
+    } else if (type === 'F1') {
+       questions = [
+         { id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Futam győztese', points: 3, options: [p1, p2, 'Max Verstappen', 'Lewis Hamilton'] },
+         { id: crypto.randomUUID(), type: QuestionType.CHOICE, label: 'Ki végez előrébb?', points: 2, options: [p1, p2] },
+         { id: crypto.randomUUID(), type: QuestionType.CHOICE, label: 'Leggyorsabb kör', points: 1, options: [p1, p2, 'Más'] },
+       ];
+    } else if (type === 'DARTS') {
+       questions = [
+        { id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Mérkőzés győztese', points: 2, options: [p1, p2] },
+        { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Pontos végeredmény (Szettek)', points: 5 },
+        { id: crypto.randomUUID(), type: QuestionType.OVER_UNDER, label: '180-as dobások száma (6.5)', points: 1 },
+      ];
+    }
+    
+    onSave({ championshipId: champId, player1: p1, player2: p2, startTime: new Date(date).toISOString(), status: 'SCHEDULED', questions });
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface w-full max-w-md rounded-2xl border border-white/10 p-6">
         <h3 className="font-bold text-white text-lg mb-6">Új Meccs</h3>
         <div className="space-y-4">
-          <input className="w-full bg-black/20 border border-white/10 p-2 rounded text-white" placeholder="Hazai" value={p1} onChange={e => setP1(e.target.value)} />
-          <input className="w-full bg-black/20 border border-white/10 p-2 rounded text-white" placeholder="Vendég" value={p2} onChange={e => setP2(e.target.value)} />
+          <input className="w-full bg-black/20 border border-white/10 p-2 rounded text-white" placeholder="Hazai / Pilóta 1" value={p1} onChange={e => setP1(e.target.value)} />
+          <input className="w-full bg-black/20 border border-white/10 p-2 rounded text-white" placeholder="Vendég / Pilóta 2" value={p2} onChange={e => setP2(e.target.value)} />
           <input type="datetime-local" className="w-full bg-black/20 border border-white/10 p-2 rounded text-white" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <div className="flex justify-end gap-3 mt-6">
+        
+        <div className="mt-6">
+           <div className="text-xs text-muted uppercase font-bold mb-2">Gyors sablonok</div>
+           <div className="flex gap-2">
+              <button onClick={() => applyPreset('FOOTBALL')} className="flex-1 bg-white/5 hover:bg-white/10 p-2 rounded text-xs border border-white/10">⚽ Foci</button>
+              <button onClick={() => applyPreset('F1')} className="flex-1 bg-white/5 hover:bg-white/10 p-2 rounded text-xs border border-white/10">🏎️ F1</button>
+              <button onClick={() => applyPreset('DARTS')} className="flex-1 bg-white/5 hover:bg-white/10 p-2 rounded text-xs border border-white/10">🎯 Darts</button>
+           </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6 border-t border-white/5 pt-4">
           <button onClick={onClose} className="text-muted text-sm">Mégse</button>
-          <button onClick={handleSave} className="bg-primary text-white px-4 py-2 rounded text-sm">Létrehozás</button>
+          <button onClick={handleSave} className="bg-primary text-white px-4 py-2 rounded text-sm">Egyéni Létrehozás</button>
         </div>
       </div>
     </div>

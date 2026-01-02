@@ -11,6 +11,15 @@ export interface User {
   passwordHash?: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  championshipId: string;
+  userId: string;
+  username: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface QuestionConfig {
   id: string;
   label: string;
