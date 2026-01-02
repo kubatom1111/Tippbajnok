@@ -92,7 +92,7 @@ export const CreateMatchModal: React.FC<CreateMatchModalProps> = ({ championship
               )}
 
               <div className="space-y-3">
-                {questions.map((q) => (
+                {questions.map((q, idx) => (
                   <div key={q.id} className="p-4 bg-slate-900 rounded-xl border border-slate-700 flex justify-between items-center">
                     <div>
                       <div className="font-medium text-slate-200">{q.label}</div>
