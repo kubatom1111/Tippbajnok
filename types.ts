@@ -1,14 +1,14 @@
 export enum QuestionType {
-  WINNER = 'WINNER', // Select Player 1 or Player 2
-  EXACT_SCORE = 'EXACT_SCORE', // X - Y
-  OVER_UNDER = 'OVER_UNDER', // Value > Threshold
-  CHOICE = 'CHOICE', // Select from custom options (e.g. High checkout player)
+  WINNER = 'WINNER',
+  EXACT_SCORE = 'EXACT_SCORE',
+  OVER_UNDER = 'OVER_UNDER',
+  CHOICE = 'CHOICE',
 }
 
 export interface User {
   id: string;
   username: string;
-  passwordHash: string; // Simple local hash for demo
+  passwordHash?: string;
 }
 
 export interface QuestionConfig {
@@ -16,8 +16,8 @@ export interface QuestionConfig {
   label: string;
   type: QuestionType;
   points: number;
-  options?: string[]; // For CHOICE type or labels for players
-  threshold?: number; // For OVER_UNDER
+  options?: string[];
+  threshold?: number;
 }
 
 export interface Match {
@@ -25,22 +25,20 @@ export interface Match {
   championshipId: string;
   player1: string;
   player2: string;
-  startTime: string; // ISO String
+  startTime: string;
   status: 'SCHEDULED' | 'FINISHED';
   questions: QuestionConfig[];
 }
 
-// Stores the actual correct results entered by Admin
 export interface MatchResult {
   matchId: string;
-  answers: Record<string, string | number>; // questionId -> value
+  answers: Record<string, string | number>;
 }
 
-// Stores the user's prediction
 export interface Bet {
   userId: string;
   matchId: string;
-  answers: Record<string, string | number>; // questionId -> value
+  answers: Record<string, string | number>;
   timestamp: string;
 }
 
@@ -49,7 +47,7 @@ export interface Championship {
   name: string;
   joinCode: string;
   adminId: string;
-  participants: string[]; // List of user IDs
+  participants: string[];
 }
 
 export interface LeaderboardEntry {

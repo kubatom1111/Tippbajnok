@@ -7,19 +7,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        sport: {
-          bg: '#0f111a',
-          card: '#1e293b',
-          text: '#e2e8f0',
-          muted: '#94a3b8',
-          primary: '#3b82f6', // blue-500
-          secondary: '#10b981', // emerald-500
-          accent: '#f97316', // orange-500
-        }
+        background: '#09090b',
+        surface: '#18181b',
+        primary: '#3b82f6',
+        secondary: '#10b981',
+        accent: '#f59e0b',
+        muted: '#71717a',
       },
-      boxShadow: {
-        'glow': '0 0 15px rgba(59, 130, 246, 0.3)',
-        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15)',
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
       }
     },
   },
