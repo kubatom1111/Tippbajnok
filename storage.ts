@@ -1,180 +1,264 @@
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, Championship, Match, Bet, MatchResult, ChatMessage } from './types';
 
-const KEYS = {
-  USERS: 'ht_v2_users',
-  CHAMPIONSHIPS: 'ht_v2_champs',
-  MATCHES: 'ht_v2_matches',
-  BETS: 'ht_v2_bets',
-  RESULTS: 'ht_v2_results',
-  SESSION: 'ht_v2_session',
-  MESSAGES: 'ht_v2_messages',
+let supabase: SupabaseClient | null = null;
+
+// Konfiguráció betöltése vagy mentése
+export const isConfigured = () => {
+  return !!localStorage.getItem('ht_sb_url') && !!localStorage.getItem('ht_sb_key');
 };
 
-// Utils
-const load = <T>(key: string): T[] => JSON.parse(localStorage.getItem(key) || '[]');
-const save = (key: string, data: any[]) => localStorage.setItem(key, JSON.stringify(data));
-const delay = () => new Promise(r => setTimeout(r, 400)); // Loading effect
+export const configureSupabase = (url: string, key: string) => {
+  localStorage.setItem('ht_sb_url', url);
+  localStorage.setItem('ht_sb_key', key);
+  supabase = createClient(url, key);
+};
 
-// Auth
+// Inicializálás induláskor
+const storedUrl = localStorage.getItem('ht_sb_url');
+const storedKey = localStorage.getItem('ht_sb_key');
+if (storedUrl && storedKey) {
+  supabase = createClient(storedUrl, storedKey);
+}
+
+const getClient = () => {
+  if (!supabase) throw new Error("Az adatbázis nincs beállítva!");
+  return supabase;
+};
+
+// --- Auth ---
+
 export const register = async (username: string, password: string): Promise<User> => {
-  await delay();
-  const users = load<User>(KEYS.USERS);
-  if (users.find(u => u.username === username)) throw new Error('Foglalt név!');
+  const sb = getClient();
   
-  // Egyszerű base64 kódolás demó célra (élesben soha ne használd így!)
-  const passwordHash = btoa(password);
+  // Ellenőrizzük, hogy létezik-e
+  const { data: existing } = await sb.from('users').select('id').eq('username', username).single();
+  if (existing) throw new Error('Foglalt felhasználónév!');
+
+  const passwordHash = btoa(password); // Productionben ezt nem így csináljuk, de demohoz ok
   
-  const user = { id: crypto.randomUUID(), username, passwordHash };
-  users.push(user);
-  save(KEYS.USERS, users);
-  localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
+  const { data, error } = await sb.from('users').insert({
+    username,
+    password_hash: passwordHash
+  }).select().single();
+
+  if (error) throw error;
+  
+  const user = { id: data.id, username: data.username };
+  localStorage.setItem('ht_session', JSON.stringify(user));
   return user;
 };
 
 export const login = async (username: string, password: string): Promise<User> => {
-  await delay();
-  const users = load<User>(KEYS.USERS);
+  const sb = getClient();
   const hash = btoa(password);
-  
-  const user = users.find(u => u.username === username && u.passwordHash === hash);
-  if (!user) throw new Error('Hibás felhasználónév vagy jelszó!');
-  
-  localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
+
+  const { data, error } = await sb.from('users')
+    .select('*')
+    .eq('username', username)
+    .eq('password_hash', hash)
+    .single();
+
+  if (error || !data) throw new Error('Hibás felhasználónév vagy jelszó!');
+
+  const user = { id: data.id, username: data.username };
+  localStorage.setItem('ht_session', JSON.stringify(user));
   return user;
 };
 
 export const getSession = (): User | null => {
-  const s = localStorage.getItem(KEYS.SESSION);
+  const s = localStorage.getItem('ht_session');
   return s ? JSON.parse(s) : null;
 };
 
-export const logout = () => localStorage.removeItem(KEYS.SESSION);
+export const logout = () => {
+    localStorage.removeItem('ht_session');
+    // Opcionálisan törölhetjük a configot is, ha teljes reset kell:
+    // localStorage.removeItem('ht_sb_url');
+    // localStorage.removeItem('ht_sb_key');
+};
 
-// Logic
+export const resetConfig = () => {
+    localStorage.clear();
+    location.reload();
+}
+
+// --- Logic ---
+
 export const createChamp = async (name: string, code: string, adminId: string) => {
-  await delay();
-  const list = load<Championship>(KEYS.CHAMPIONSHIPS);
-  if (list.find(c => c.joinCode === code)) throw new Error('A kód foglalt!');
-  list.push({ id: crypto.randomUUID(), name, joinCode: code, adminId, participants: [adminId] });
-  save(KEYS.CHAMPIONSHIPS, list);
+  const sb = getClient();
+  
+  const { data: existing } = await sb.from('championships').select('id').eq('join_code', code).single();
+  if (existing) throw new Error('A kód foglalt!');
+
+  const { error } = await sb.from('championships').insert({
+      name,
+      join_code: code,
+      admin_id: adminId,
+      participants: [adminId] // JSONB array
+  });
+
+  if (error) throw error;
 };
 
 export const joinChamp = async (code: string, userId: string) => {
-  await delay();
-  const list = load<Championship>(KEYS.CHAMPIONSHIPS);
-  const idx = list.findIndex(c => c.joinCode === code);
-  if (idx === -1) throw new Error('Érvénytelen kód!');
-  if (!list[idx].participants.includes(userId)) {
-    list[idx].participants.push(userId);
-    save(KEYS.CHAMPIONSHIPS, list);
+  const sb = getClient();
+  
+  const { data: champ, error } = await sb.from('championships').select('*').eq('join_code', code).single();
+  if (error || !champ) throw new Error('Érvénytelen kód!');
+
+  const participants: string[] = champ.participants || [];
+  if (!participants.includes(userId)) {
+      participants.push(userId);
+      const { error: updateError } = await sb.from('championships')
+        .update({ participants })
+        .eq('id', champ.id);
+      if (updateError) throw updateError;
   }
 };
 
-export const getMyChamps = async (userId: string) => {
-  await delay();
-  return load<Championship>(KEYS.CHAMPIONSHIPS).filter(c => c.participants.includes(userId));
+export const getMyChamps = async (userId: string): Promise<Championship[]> => {
+  const sb = getClient();
+  // Supabase postgREST filter jsonb contains
+  const { data, error } = await sb.from('championships').select('*').contains('participants', JSON.stringify([userId]));
+  if (error) return [];
+  
+  return data.map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      joinCode: d.join_code,
+      adminId: d.admin_id,
+      participants: d.participants
+  }));
 };
 
-export const getMatches = async (champId: string) => {
-  await delay();
-  return load<Match>(KEYS.MATCHES).filter(m => m.championshipId === champId)
-    .sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+export const getMatches = async (champId: string): Promise<Match[]> => {
+  const sb = getClient();
+  const { data, error } = await sb.from('matches')
+    .select('*')
+    .eq('championship_id', champId)
+    .order('start_time', { ascending: true });
+    
+  if (error) return [];
+
+  return data.map((d: any) => ({
+      id: d.id,
+      championshipId: d.championship_id,
+      player1: d.player1,
+      player2: d.player2,
+      startTime: d.start_time,
+      status: d.status,
+      questions: d.questions
+  }));
 };
 
 export const createMatch = async (match: Omit<Match, 'id'>) => {
-  const list = load<Match>(KEYS.MATCHES);
-  list.push({ ...match, id: crypto.randomUUID() });
-  save(KEYS.MATCHES, list);
+  const sb = getClient();
+  const { error } = await sb.from('matches').insert({
+      championship_id: match.championshipId,
+      player1: match.player1,
+      player2: match.player2,
+      start_time: match.startTime,
+      status: match.status,
+      questions: match.questions
+  });
+  if (error) throw error;
 };
 
 export const saveBet = async (bet: Bet) => {
-  await delay();
-  const list = load<Bet>(KEYS.BETS).filter(b => !(b.matchId === bet.matchId && b.userId === bet.userId));
-  list.push(bet);
-  save(KEYS.BETS, list);
+  const sb = getClient();
+  // Upsert logic using user_id + match_id unique constraint
+  const { error } = await sb.from('bets').upsert({
+      user_id: bet.userId,
+      match_id: bet.matchId,
+      answers: bet.answers,
+      timestamp: bet.timestamp
+  }, { onConflict: 'user_id,match_id' });
+  
+  if (error) throw error;
 };
 
-export const getBets = (matchId: string) => load<Bet>(KEYS.BETS).filter(b => b.matchId === matchId);
-export const getResults = () => load<MatchResult>(KEYS.RESULTS);
+export const getBets = (matchId: string): Bet[] => {
+  // Ez most async kellene legyen, de a komponens szinkron hívja.
+  // Mivel a React `useEffect`-ben van, át kell írni azt is.
+  // De a gyors fix érdekében: csináljunk egy async loadert a komponensben.
+  // ITT most visszatérünk egy üres tömbbel, és csinálunk egy async verziót.
+  return []; 
+};
+
+// Async bet loader
+export const fetchBetsForMatch = async (matchId: string): Promise<Bet[]> => {
+    const sb = getClient();
+    const { data, error } = await sb.from('bets').select('*').eq('match_id', matchId);
+    if(error) return [];
+    return data.map((d: any) => ({
+        userId: d.user_id,
+        matchId: d.match_id,
+        answers: d.answers,
+        timestamp: d.timestamp
+    }));
+}
+
+export const getResults = (): MatchResult[] => {
+    return []; // Placeholder, use async
+};
+
+export const fetchResults = async (): Promise<MatchResult[]> => {
+    const sb = getClient();
+    const { data } = await sb.from('results').select('*');
+    return data ? data.map((d:any) => ({ matchId: d.match_id, answers: d.answers })) : [];
+}
 
 export const closeMatch = async (result: MatchResult) => {
-  const resList = load<MatchResult>(KEYS.RESULTS).filter(r => r.matchId !== result.matchId);
-  resList.push(result);
-  save(KEYS.RESULTS, resList);
+  const sb = getClient();
   
-  const matches = load<Match>(KEYS.MATCHES);
-  const mIdx = matches.findIndex(m => m.id === result.matchId);
-  if (mIdx !== -1) {
-    matches[mIdx].status = 'FINISHED';
-    save(KEYS.MATCHES, matches);
-  }
-};
-
-export const getAllUsers = () => {
-    const users = load<User>(KEYS.USERS);
-    return users.reduce((acc, u) => ({...acc, [u.id]: u.username}), {} as Record<string, string>);
-};
-
-// Global Stats Calculation
-export const getGlobalStats = async () => {
-  await delay();
-  const matches = load<Match>(KEYS.MATCHES);
-  const results = load<MatchResult>(KEYS.RESULTS);
-  const bets = load<Bet>(KEYS.BETS);
-  const users = load<User>(KEYS.USERS);
-
-  const stats: Record<string, { username: string, points: number, correct: number }> = {};
-
-  // Init users
-  users.forEach(u => {
-    stats[u.id] = { username: u.username, points: 0, correct: 0 };
+  // 1. Save Result
+  await sb.from('results').upsert({
+      match_id: result.matchId,
+      answers: result.answers
   });
 
-  // Calculate points
-  matches.filter(m => m.status === 'FINISHED').forEach(m => {
-     const res = results.find(r => r.matchId === m.id);
-     if (!res) return;
+  // 2. Update Match Status
+  await sb.from('matches').update({ status: 'FINISHED' }).eq('id', result.matchId);
+};
 
-     bets.filter(b => b.matchId === m.id).forEach(bet => {
-        if (!stats[bet.userId]) return;
-        m.questions.forEach(q => {
-            if (String(bet.answers[q.id]) === String(res.answers[q.id])) {
-                stats[bet.userId].points += q.points;
-                stats[bet.userId].correct++;
-            }
-        });
-     });
+export const getAllUsers = async () => {
+    const sb = getClient();
+    const { data } = await sb.from('users').select('id, username');
+    return data ? data.reduce((acc: any, u: any) => ({...acc, [u.id]: u.username}), {}) : {};
+};
+
+export const getGlobalStats = async () => {
+  const sb = getClient();
+  
+  // Ez egy komplex lekérdezés lenne SQL-ben, de itt kliens oldalon rakjuk össze
+  const { data: users } = await sb.from('users').select('id, username');
+  const { data: matches } = await sb.from('matches').select('*').eq('status', 'FINISHED');
+  const { data: results } = await sb.from('results').select('*');
+  const { data: bets } = await sb.from('bets').select('*');
+
+  if (!users || !matches || !results || !bets) return [];
+
+  const stats: Record<string, { username: string, points: number, correct: number }> = {};
+  users.forEach((u: any) => {
+      stats[u.id] = { username: u.username, points: 0, correct: 0 };
+  });
+
+  matches.forEach((m: any) => {
+      const res = results.find((r: any) => r.match_id === m.id);
+      if(!res) return;
+
+      const matchBets = bets.filter((b: any) => b.match_id === m.id);
+      matchBets.forEach((b: any) => {
+          if(!stats[b.user_id]) return;
+          (m.questions as any[]).forEach(q => {
+              if (String(b.answers[q.id]) === String(res.answers[q.id])) {
+                  stats[b.user_id].points += q.points;
+                  stats[b.user_id].correct++;
+              }
+          });
+      });
   });
 
   return Object.values(stats).sort((a,b) => b.points - a.points);
-};
-
-// Chat
-export const getMessages = async (champId: string) => {
-  // Nem kell delay a chathez, hogy gyors legyen
-  return load<ChatMessage>(KEYS.MESSAGES)
-    .filter(m => m.championshipId === champId)
-    .sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-};
-
-export const sendMessage = async (msg: Omit<ChatMessage, 'id'>) => {
-  const list = load<ChatMessage>(KEYS.MESSAGES);
-  list.push({ ...msg, id: crypto.randomUUID() });
-  save(KEYS.MESSAGES, list);
-};
-
-// Stats
-export const getMatchStats = (matchId: string) => {
-  const bets = getBets(matchId);
-  const stats: Record<string, Record<string, number>> = {};
-  
-  bets.forEach(bet => {
-    Object.entries(bet.answers).forEach(([qId, answer]) => {
-      if (!stats[qId]) stats[qId] = {};
-      const val = String(answer);
-      stats[qId][val] = (stats[qId][val] || 0) + 1;
-    });
-  });
-
-  return { stats, totalBets: bets.length };
 };
