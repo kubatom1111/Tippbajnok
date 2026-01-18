@@ -114,39 +114,136 @@ export default function App() {
 function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Championship) => void }) {
   const [champs, setChamps] = useState<Championship[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [stats, setStats] = useState({ points: 0, rank: '-', topUser: '?' });
+  const [globalRank, setGlobalRank] = useState<any[]>([]);
+  const [tab, setTab] = useState<'CHAMPS' | 'GLOBAL'>('CHAMPS');
 
-  useEffect(() => { const l = async () => setChamps(await db.getMyChamps(user.id)); l(); }, [showCreate]);
+  useEffect(() => { 
+      const load = async () => {
+          setChamps(await db.getMyChamps(user.id));
+          
+          const gStats = await db.getGlobalStats();
+          setGlobalRank(gStats);
+          
+          const myStat = gStats.find(s => s.username === user.username);
+          setStats({
+              points: myStat?.points || 0,
+              rank: myStat ? (gStats.indexOf(myStat) + 1).toString() : '-',
+              topUser: gStats[0]?.username || '?'
+          });
+      }; 
+      load(); 
+  }, [showCreate, user]);
 
   return (
-     <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-           <h1 className="text-3xl font-black text-white tracking-tight">Bajnokságaim</h1>
-           <button onClick={() => setShowCreate(true)} className="bg-primary hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-primary/20 flex items-center gap-2 transition-all">
-              <Icon name="add" className="text-xl" /> Új Bajnokság
-           </button>
-        </div>
+     <div className="max-w-5xl mx-auto space-y-8">
         
-        <div className="grid md:grid-cols-2 gap-6">
-           {champs.map(c => (
-              <div key={c.id} onClick={() => onOpenChamp(c)} className="bg-surface-dark border border-border-dark p-6 rounded-2xl hover:border-primary/50 cursor-pointer transition-all group relative overflow-hidden">
-                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <Icon name="emoji_events" className="text-8xl text-white" />
-                 </div>
-                 <div className="relative z-10">
-                    <h3 className="text-2xl font-bold text-white mb-2">{c.name}</h3>
-                    <div className="flex items-center gap-4 text-text-muted text-sm font-medium">
-                       <span className="flex items-center gap-1"><Icon name="group" className="text-base"/> {c.participants.length} résztvevő</span>
-                       <span className="bg-border-dark px-2 py-0.5 rounded text-white text-xs font-mono">{c.joinCode}</span>
+        {/* User Stats Hero */}
+        <div className="bg-gradient-to-r from-surface-dark to-[#16202a] rounded-3xl p-8 border border-border-dark shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div className="flex items-center gap-6">
+                    <div className="size-20 rounded-full bg-surface-dark border-4 border-primary/20 flex items-center justify-center text-3xl font-black text-white shadow-glow">
+                        {user.username[0].toUpperCase()}
                     </div>
-                 </div>
-              </div>
-           ))}
-           {champs.length === 0 && (
-              <div className="col-span-full py-12 text-center border-2 border-dashed border-border-dark rounded-2xl">
-                 <p className="text-text-muted">Még nincs bajnokságod.</p>
-              </div>
-           )}
+                    <div>
+                        <h2 className="text-3xl font-black text-white">Szia, {user.username}!</h2>
+                        <p className="text-text-muted">Jó újra látni a pályán.</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="bg-[#101922]/60 backdrop-blur-sm p-4 rounded-2xl border border-border-dark min-w-[120px] text-center">
+                        <div className="text-xs text-text-muted uppercase font-bold tracking-wider mb-1">Összpontszám</div>
+                        <div className="text-3xl font-black text-primary">{stats.points}</div>
+                    </div>
+                    <div className="bg-[#101922]/60 backdrop-blur-sm p-4 rounded-2xl border border-border-dark min-w-[120px] text-center">
+                        <div className="text-xs text-text-muted uppercase font-bold tracking-wider mb-1">Globális Hely</div>
+                        <div className="text-3xl font-black text-white">#{stats.rank}</div>
+                    </div>
+                </div>
+             </div>
         </div>
+
+        {/* Navigation Tabs */}
+        <div className="flex items-center justify-between border-b border-border-dark pb-1">
+            <div className="flex gap-6">
+                <button onClick={() => setTab('CHAMPS')} className={`pb-3 text-lg font-bold transition-all relative ${tab === 'CHAMPS' ? 'text-white' : 'text-text-muted hover:text-white'}`}>
+                    Bajnokságaim
+                    {tab === 'CHAMPS' && <div className="absolute bottom-[-5px] left-0 w-full h-1 bg-primary rounded-full shadow-glow"></div>}
+                </button>
+                <button onClick={() => setTab('GLOBAL')} className={`pb-3 text-lg font-bold transition-all relative ${tab === 'GLOBAL' ? 'text-white' : 'text-text-muted hover:text-white'}`}>
+                    Globális Ranglista
+                    {tab === 'GLOBAL' && <div className="absolute bottom-[-5px] left-0 w-full h-1 bg-accent rounded-full shadow-glow"></div>}
+                </button>
+            </div>
+            {tab === 'CHAMPS' && (
+                <button onClick={() => setShowCreate(true)} className="bg-surface-dark hover:bg-border-dark text-white px-4 py-2 rounded-full font-bold text-sm border border-border-dark transition-all flex items-center gap-2">
+                    <Icon name="add_circle" /> Új Bajnokság
+                </button>
+            )}
+        </div>
+
+        {/* Content Area */}
+        {tab === 'CHAMPS' ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {champs.map(c => (
+                <div key={c.id} onClick={() => onOpenChamp(c)} className="bg-surface-dark border border-border-dark p-6 rounded-2xl hover:border-primary/50 hover:shadow-lg cursor-pointer transition-all group relative overflow-hidden flex flex-col justify-between h-56">
+                    <div className="absolute -right-4 -top-4 text-[#1a2632] opacity-50 group-hover:opacity-100 group-hover:text-[#233648] transition-all">
+                        <Icon name="trophy" className="text-[140px]" />
+                    </div>
+                    <div className="relative z-10">
+                        <div className="bg-primary/10 text-primary w-fit px-2 py-1 rounded-md text-[10px] font-bold uppercase mb-3 border border-primary/20">Aktív</div>
+                        <h3 className="text-2xl font-black text-white leading-tight mb-1">{c.name}</h3>
+                        <p className="text-text-muted text-sm">Kód: <span className="font-mono text-white">{c.joinCode}</span></p>
+                    </div>
+                    <div className="relative z-10 border-t border-border-dark pt-4 mt-4 flex items-center justify-between">
+                        <div className="flex -space-x-2">
+                            {c.participants.slice(0,3).map((p,i) => (
+                                <div key={i} className="size-8 rounded-full bg-border-dark border-2 border-surface-dark flex items-center justify-center text-xs font-bold text-text-muted">P{i+1}</div>
+                            ))}
+                            {c.participants.length > 3 && <div className="size-8 rounded-full bg-border-dark border-2 border-surface-dark flex items-center justify-center text-xs font-bold text-white">+{c.participants.length-3}</div>}
+                        </div>
+                        <span className="text-xs font-bold text-primary flex items-center gap-1">Belépés <Icon name="arrow_forward" className="text-sm" /></span>
+                    </div>
+                </div>
+            ))}
+            {champs.length === 0 && (
+                <div className="col-span-full py-16 text-center border-2 border-dashed border-border-dark rounded-3xl bg-surface-dark/30">
+                    <div className="size-16 bg-border-dark rounded-full flex items-center justify-center mx-auto mb-4 text-text-muted"><Icon name="sports_esports" className="text-3xl"/></div>
+                    <p className="text-white font-bold text-lg">Még nem vagy tagja egy bajnokságnak sem.</p>
+                    <p className="text-text-muted text-sm mb-6">Hozz létre egyet a haveroknak, vagy lépj be egy kód segítségével!</p>
+                    <button onClick={() => setShowCreate(true)} className="text-primary font-bold hover:underline">Indítás most</button>
+                </div>
+            )}
+            </div>
+        ) : (
+            <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-[#15202b] text-xs uppercase text-text-muted font-bold border-b border-border-dark">
+                        <tr>
+                            <th className="p-4 w-16 text-center">#</th>
+                            <th className="p-4">Játékos</th>
+                            <th className="p-4 text-center">Pontos Tipp</th>
+                            <th className="p-4 text-right">Összpont</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-dark">
+                        {globalRank.map((r, i) => (
+                            <tr key={i} className={`group hover:bg-white/5 ${r.username === user.username ? 'bg-primary/5' : ''}`}>
+                                <td className="p-4 text-center font-mono text-text-muted">{i+1}</td>
+                                <td className="p-4 flex items-center gap-3">
+                                    <div className="size-8 rounded-full bg-input-dark flex items-center justify-center font-bold text-xs">{r.username[0]}</div>
+                                    <span className={`font-bold ${r.username === user.username ? 'text-primary' : 'text-white'}`}>{r.username}</span>
+                                </td>
+                                <td className="p-4 text-center text-text-muted font-mono">{r.correct}</td>
+                                <td className="p-4 text-right font-black text-white text-lg">{r.points}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        )}
+
         {showCreate && <CreateChampModal userId={user.id} onClose={() => setShowCreate(false)} />}
      </div>
   );
@@ -578,11 +675,31 @@ function PromoWidget() {
 }
 
 function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
+    const [isRegistering, setIsRegistering] = useState(false);
     const [username, setUsername] = useState('');
-    const handleSubmit = async (isReg: boolean) => {
-        if (!username) return;
-        try { onLogin(isReg ? await db.register(username) : await db.login(username)); } catch (e: any) { alert(e.message); }
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!username || !password) {
+            setError('Minden mező kitöltése kötelező!');
+            return;
+        }
+        setLoading(true);
+        setError('');
+        try { 
+            const user = isRegistering 
+                ? await db.register(username, password) 
+                : await db.login(username, password);
+            onLogin(user); 
+        } catch (e: any) { 
+            setError(e.message); 
+        } finally {
+            setLoading(false);
+        }
     };
+
     return (
        <div className="min-h-screen flex items-center justify-center p-4 bg-background-dark">
           <div className="w-full max-w-md bg-surface-dark p-8 rounded-2xl border border-border-dark text-center shadow-2xl">
@@ -590,11 +707,41 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
                 <Icon name="sports_esports" className="text-4xl" />
              </div>
              <h1 className="text-3xl font-black text-white mb-2">HaverTipp</h1>
-             <p className="text-text-muted mb-8">Lépj be és kezdj el tippelni</p>
-             <div className="space-y-4">
-                <input value={username} onChange={e => setUsername(e.target.value)} className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white placeholder-text-muted focus:border-primary outline-none" placeholder="Felhasználónév" />
-                <button onClick={() => handleSubmit(false)} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold shadow-glow transition-all">Belépés</button>
-                <div className="text-sm text-text-muted">Nincs fiókod? <button onClick={() => handleSubmit(true)} className="text-primary font-bold hover:underline">Regisztráció</button></div>
+             <p className="text-text-muted mb-8">{isRegistering ? 'Hozz létre fiókot és tippelj!' : 'Lépj be és kezdj el tippelni'}</p>
+             
+             <div className="space-y-4 text-left">
+                <div>
+                    <label className="text-xs font-bold text-text-muted uppercase ml-1">Felhasználónév</label>
+                    <input 
+                        value={username} 
+                        onChange={e => setUsername(e.target.value)} 
+                        className="w-full mt-1 bg-input-dark border border-border-dark rounded-xl p-3 text-white placeholder-text-muted focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all" 
+                        placeholder="Pl. Alex99" 
+                    />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-text-muted uppercase ml-1">Jelszó</label>
+                    <input 
+                        type="password"
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)} 
+                        className="w-full mt-1 bg-input-dark border border-border-dark rounded-xl p-3 text-white placeholder-text-muted focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all" 
+                        placeholder="••••••••" 
+                    />
+                </div>
+
+                {error && <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm font-medium">{error}</div>}
+
+                <button onClick={handleSubmit} disabled={loading} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold shadow-glow transition-all disabled:opacity-50">
+                    {loading ? 'Folyamatban...' : (isRegistering ? 'Regisztráció' : 'Belépés')}
+                </button>
+                
+                <div className="text-sm text-text-muted text-center pt-2">
+                    {isRegistering ? 'Már van fiókod? ' : 'Nincs fiókod? '} 
+                    <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="text-primary font-bold hover:underline">
+                        {isRegistering ? 'Belépés' : 'Regisztráció'}
+                    </button>
+                </div>
              </div>
           </div>
        </div>

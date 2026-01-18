@@ -16,22 +16,29 @@ const save = (key: string, data: any[]) => localStorage.setItem(key, JSON.string
 const delay = () => new Promise(r => setTimeout(r, 400)); // Loading effect
 
 // Auth
-export const register = async (username: string): Promise<User> => {
+export const register = async (username: string, password: string): Promise<User> => {
   await delay();
   const users = load<User>(KEYS.USERS);
   if (users.find(u => u.username === username)) throw new Error('Foglalt név!');
-  const user = { id: crypto.randomUUID(), username };
+  
+  // Egyszerű base64 kódolás demó célra (élesben soha ne használd így!)
+  const passwordHash = btoa(password);
+  
+  const user = { id: crypto.randomUUID(), username, passwordHash };
   users.push(user);
   save(KEYS.USERS, users);
   localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
   return user;
 };
 
-export const login = async (username: string): Promise<User> => {
+export const login = async (username: string, password: string): Promise<User> => {
   await delay();
   const users = load<User>(KEYS.USERS);
-  const user = users.find(u => u.username === username);
-  if (!user) throw new Error('Nincs ilyen felhasználó!');
+  const hash = btoa(password);
+  
+  const user = users.find(u => u.username === username && u.passwordHash === hash);
+  if (!user) throw new Error('Hibás felhasználónév vagy jelszó!');
+  
   localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
   return user;
 };
@@ -106,6 +113,40 @@ export const closeMatch = async (result: MatchResult) => {
 export const getAllUsers = () => {
     const users = load<User>(KEYS.USERS);
     return users.reduce((acc, u) => ({...acc, [u.id]: u.username}), {} as Record<string, string>);
+};
+
+// Global Stats Calculation
+export const getGlobalStats = async () => {
+  await delay();
+  const matches = load<Match>(KEYS.MATCHES);
+  const results = load<MatchResult>(KEYS.RESULTS);
+  const bets = load<Bet>(KEYS.BETS);
+  const users = load<User>(KEYS.USERS);
+
+  const stats: Record<string, { username: string, points: number, correct: number }> = {};
+
+  // Init users
+  users.forEach(u => {
+    stats[u.id] = { username: u.username, points: 0, correct: 0 };
+  });
+
+  // Calculate points
+  matches.filter(m => m.status === 'FINISHED').forEach(m => {
+     const res = results.find(r => r.matchId === m.id);
+     if (!res) return;
+
+     bets.filter(b => b.matchId === m.id).forEach(bet => {
+        if (!stats[bet.userId]) return;
+        m.questions.forEach(q => {
+            if (String(bet.answers[q.id]) === String(res.answers[q.id])) {
+                stats[bet.userId].points += q.points;
+                stats[bet.userId].correct++;
+            }
+        });
+     });
+  });
+
+  return Object.values(stats).sort((a,b) => b.points - a.points);
 };
 
 // Chat
