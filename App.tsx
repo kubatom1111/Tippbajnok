@@ -242,6 +242,7 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
    const [answers, setAnswers] = useState<any>({});
    const [hasBet, setHasBet] = useState(false);
    const [points, setPoints] = useState<number | null>(null);
+   const [isEditing, setIsEditing] = useState(false);
 
    const start = new Date(match.startTime);
    const isLocked = new Date() > start;
@@ -252,8 +253,15 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
       const init = async () => {
           const bets = await db.fetchBetsForMatch(match.id);
           const myBet = bets.find(b => b.userId === user.id);
-          if (myBet) { setHasBet(true); setAnswers(myBet.answers); }
-          else { setHasBet(false); setAnswers({}); }
+          if (myBet) { 
+              setHasBet(true); 
+              setAnswers(myBet.answers); 
+              setIsEditing(false); // Default to viewing if bet exists
+          } else { 
+              setHasBet(false); 
+              setAnswers({}); 
+              setIsEditing(true); // Default to editing if no bet
+          }
           
           if (isFinished && myBet) {
              const results = await db.fetchResults();
@@ -270,7 +278,10 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
 
    const handleSave = async () => {
       await db.saveBet({ userId: user.id, matchId: match.id, answers, timestamp: new Date().toISOString() });
-      setHasBet(true); setExpanded(false); refresh();
+      setHasBet(true); 
+      setIsEditing(false); // Switch to view mode
+      setExpanded(false); // Collapse to confirm
+      refresh();
    };
 
    const handleResultSave = async () => {
@@ -279,6 +290,12 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
          refresh();
       }
    };
+
+   const formatAnswer = (val: string) => {
+       if (val === 'OVER') return 'Felett';
+       if (val === 'UNDER') return 'Alatt';
+       return val;
+   }
 
    return (
       <div className={`bg-surface-dark rounded-2xl border border-border-dark overflow-hidden shadow-lg transition-all ${expanded ? 'ring-1 ring-primary/30' : ''}`}>
@@ -292,13 +309,37 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                <div className="font-bold text-white text-lg w-1/3 text-left md:w-auto">{match.player2}</div>
             </div>
             <div className="flex items-center gap-3">
+               {hasBet && !isFinished && <div className="hidden md:flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20 font-bold uppercase"><Icon name="check_circle" className="text-sm"/> Leadva</div>}
                {points !== null ? <div className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-black">+{points} PONT</div> : <div className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${isFinished ? 'bg-slate-700 text-slate-400' : 'bg-green-500/20 text-green-500'}`}>{isFinished ? 'VÉGE' : 'TIPPELHETŐ'}</div>}
                <Icon name={expanded ? "expand_less" : "expand_more"} className="text-text-muted" />
             </div>
          </div>
          {expanded && (
             <div className="p-6 bg-[#1a2632]">
-               {!isLocked && !isFinished ? (
+               {/* 1. VIEW MODE: Has bet & not editing & not finished (or finished, just view) */}
+               {hasBet && !isEditing && !isFinished ? (
+                   <div className="bg-[#101922] border border-primary/30 rounded-xl p-6 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-2 opacity-10"><Icon name="receipt_long" className="text-9xl text-primary"/></div>
+                        <div className="relative z-10">
+                            <h4 className="text-primary font-bold uppercase tracking-wider text-xs mb-4 flex items-center gap-2"><Icon name="verified"/> Aktív Szelvény</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
+                                {match.questions.map(q => (
+                                    <div key={q.id} className="flex justify-between items-center border-b border-border-dark pb-2 last:border-0">
+                                        <span className="text-text-muted text-sm">{q.label}</span>
+                                        <span className="font-bold text-white">{formatAnswer(answers[q.id])}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            {!isLocked && (
+                                <div className="mt-6 flex justify-end">
+                                    <button onClick={() => setIsEditing(true)} className="text-text-muted text-sm hover:text-white underline decoration-dotted">Tipp módosítása</button>
+                                </div>
+                            )}
+                        </div>
+                   </div>
+               ) : (
+                /* 2. EDIT MODE: No bet OR editing OR Admin entering result */
+               !isLocked && !isFinished ? (
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {match.questions.map(q => (
                          <div key={q.id} className="space-y-2">
@@ -323,11 +364,31 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                             )}
                          </div>
                       ))}
-                      <button onClick={handleSave} className="md:col-span-2 bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold mt-2 shadow-lg shadow-primary/25 transition-all">Tipp Mentése</button>
+                      <div className="md:col-span-2 flex gap-3 mt-2">
+                          {hasBet && <button onClick={() => setIsEditing(false)} className="flex-1 bg-surface-dark border border-border-dark text-white py-3 rounded-xl font-bold hover:bg-border-dark">Mégse</button>}
+                          <button onClick={handleSave} className="flex-[2] bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-primary/25 transition-all">Tipp Mentése</button>
+                      </div>
                    </div>
                ) : (
+                   /* 3. LOCKED / FINISHED STATE */
                    <div className="text-center py-4">
                        <p className="text-text-muted mb-4 font-medium">A tippelés lezárult erre a mérkőzésre.</p>
+                       
+                       {/* Show user's bet if they had one */}
+                       {hasBet && (
+                           <div className="bg-[#101922] border border-border-dark rounded-xl p-4 max-w-lg mx-auto mb-6 text-left">
+                                <h4 className="text-text-muted font-bold uppercase tracking-wider text-xs mb-3 border-b border-border-dark pb-2">A te tipped:</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {match.questions.map(q => (
+                                        <div key={q.id} className="flex justify-between">
+                                            <span className="text-text-muted text-xs truncate pr-2">{q.label}:</span>
+                                            <span className="font-bold text-white text-xs">{formatAnswer(answers[q.id])}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                           </div>
+                       )}
+
                        {isAdmin && !isFinished && (
                           <div className="border-t border-border-dark pt-4 bg-black/20 p-4 rounded-xl">
                              <h4 className="text-white font-bold mb-4 flex items-center justify-center gap-2"><Icon name="admin_panel_settings"/> Eredmény Rögzítése (Admin)</h4>
@@ -340,7 +401,7 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                           </div>
                        )}
                    </div>
-               )}
+               ))}
             </div>
          )}
       </div>
