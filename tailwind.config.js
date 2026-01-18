@@ -4,22 +4,37 @@ export default {
     "./index.html",
     "./**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        background: '#dcfce7', // Halvány menta háttér
-        surface: '#fffbeb', // Pasztell sárga kártyák
-        primary: '#0f172a', // Sötétkék/Fekete szöveg és gombok
-        secondary: '#14b8a6', // Teal akcentus
-        input: '#cffafe', // Halvány kék input mezők
-        accent: '#f59e0b', // Narancs/Arany
-        muted: '#64748b', // Szürkés szöveg
+        primary: "#137fec", // Neon Blue
+        accent: "#39ff14",  // Neon Green
+        background: {
+          light: "#f6f7f8",
+          dark: "#101922",  // Deep Dark Blue/Black
+        },
+        surface: {
+          dark: "#1a2632",  // Card Background
+          darker: "#15202b", // Header Background
+        },
+        border: {
+          dark: "#233648",
+        },
+        input: {
+          dark: "#233648",
+        },
+        text: {
+          muted: "#92adc9",
+        }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Spline Sans', 'sans-serif'],
+        body: ['Noto Sans', 'sans-serif'],
       },
       boxShadow: {
-        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+        'glow': '0 0 10px rgba(57, 255, 20, 0.1)',
+        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15)',
       }
     },
   },

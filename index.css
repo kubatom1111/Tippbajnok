@@ -3,18 +3,40 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
-  background-color: #dcfce7; /* Menta háttér */
-  color: #0f172a;
-  font-family: 'Inter', sans-serif;
+  background-color: #101922;
+  color: #ffffff;
+  font-family: 'Spline Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar testreszabása az új témához */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #101922; 
+}
+::-webkit-scrollbar-thumb {
+  background: #233648; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #137fec; 
+}
+
+.neon-text {
+  color: #39ff14;
+  text-shadow: 0 0 5px rgba(57, 255, 20, 0.5);
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 1,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24
+}

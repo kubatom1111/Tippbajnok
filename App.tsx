@@ -1,61 +1,23 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Championship, Match, QuestionType, ChatMessage } from './types';
 import * as db from './storage';
-import { Trophy, Plus, LogOut, ChevronRight, Calendar, User as UserIcon, MessageSquare, Send, Activity, Target, Medal, BarChart3, ArrowRight } from 'lucide-react';
 
-// --- Main App Component ---
+// --- Icons (Material Symbols wrapper) ---
+const Icon = ({ name, className = "" }: { name: string, className?: string }) => (
+  <span className={`material-symbols-outlined ${className}`}>{name}</span>
+);
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [page, setPage] = useState<'AUTH' | 'DASHBOARD' | 'MY_TIPS' | 'GLOBAL_LEADERBOARD' | 'CHAMPIONSHIP'>('AUTH');
+  const [page, setPage] = useState<'AUTH' | 'DASHBOARD' | 'LEADERBOARD'>('AUTH');
   const [activeChamp, setActiveChamp] = useState<Championship | null>(null);
   const [refresh, setRefresh] = useState(0);
-
-  // Global Stats state
-  const [globalStats, setGlobalStats] = useState({ totalTips: 0, correctTips: 0, totalPoints: 0 });
 
   useEffect(() => {
     const u = db.getSession();
     if (u) { setUser(u); setPage('DASHBOARD'); }
     else setPage('AUTH');
   }, []);
-
-  // Globális statisztikák számolása a Footerhez
-  useEffect(() => {
-    if (!user) return;
-    const calcStats = async () => {
-      const champs = await db.getMyChamps(user.id);
-      let tTips = 0;
-      let cTips = 0;
-      let tPoints = 0;
-
-      for (const champ of champs) {
-        const matches = await db.getMatches(champ.id);
-        const results = db.getResults();
-        
-        for (const m of matches) {
-           const bets = db.getBets(m.id);
-           const myBet = bets.find(b => b.userId === user.id);
-           if (myBet) {
-             tTips++;
-             const result = results.find(r => r.matchId === m.id);
-             if (result) {
-               m.questions.forEach(q => {
-                 if (String(myBet.answers[q.id]) === String(result.answers[q.id])) {
-                   cTips++;
-                   tPoints += q.points;
-                 }
-               });
-             }
-           }
-        }
-      }
-      setGlobalStats({ totalTips: tTips, correctTips: cTips, totalPoints: tPoints });
-    };
-    calcStats();
-  }, [user, refresh, page]);
-
-  const triggerRefresh = () => setRefresh(prev => prev + 1);
 
   const handleLogout = () => {
     db.logout();
@@ -66,508 +28,605 @@ export default function App() {
   if (page === 'AUTH') return <AuthScreen onLogin={(u) => { setUser(u); setPage('DASHBOARD'); }} />;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col pb-16">
-      {/* Navbar - Dark Teal */}
-      <nav className="bg-primary text-white px-6 py-4 sticky top-0 z-50 shadow-lg">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2 font-bold text-xl cursor-pointer" onClick={() => {setPage('DASHBOARD'); setActiveChamp(null);}}>
-            <div className="bg-white text-primary p-1.5 rounded-lg"><Trophy size={20} fill="currentColor" /></div>
-            <span>HaverTipp</span>
+    <div className="min-h-screen bg-background-dark text-white font-sans selection:bg-primary selection:text-white pb-20 md:pb-0">
+      {/* Top Navigation */}
+      <nav className="sticky top-0 z-50 w-full border-b border-border-dark bg-[#111a22]/95 backdrop-blur-md px-4 md:px-10 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4 cursor-pointer" onClick={() => { setPage('DASHBOARD'); setActiveChamp(null); }}>
+          <div className="size-8 flex items-center justify-center text-primary">
+            <Icon name="sports_esports" className="text-3xl" />
           </div>
-          
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <button onClick={() => {setPage('DASHBOARD'); setActiveChamp(null);}} className={`hover:text-secondary transition-colors ${page === 'DASHBOARD' ? 'text-secondary' : 'text-slate-300'}`}>Bajnokságok</button>
-            <button onClick={() => {setPage('MY_TIPS'); setActiveChamp(null);}} className={`hover:text-secondary transition-colors ${page === 'MY_TIPS' ? 'text-secondary' : 'text-slate-300'}`}>Saját Tippek</button>
-            <div className="flex items-center gap-3 pl-4 border-l border-white/10">
-               <span className="flex items-center gap-2"><UserIcon size={16} /> {user?.username}</span>
-               <button onClick={handleLogout}><LogOut size={16} className="text-slate-400 hover:text-red-400" /></button>
-            </div>
-          </div>
-          
-          {/* Mobile menu placeholder */}
-          <div className="md:hidden flex items-center gap-3">
-             <span>{user?.username}</span>
-             <button onClick={handleLogout}><LogOut size={18} /></button>
-          </div>
+          <h2 className="text-white text-xl font-bold leading-tight tracking-tight hidden md:block">
+            HaverTipp <span className="text-primary">2025</span>
+          </h2>
+        </div>
+        
+        <div className="hidden md:flex flex-1 justify-end items-center gap-8">
+           <div className="flex items-center gap-6">
+              <button onClick={() => {setPage('DASHBOARD'); setActiveChamp(null);}} className={`text-sm font-medium transition-colors ${page === 'DASHBOARD' && !activeChamp ? 'text-primary' : 'text-text-muted hover:text-white'}`}>Főoldal</button>
+              {activeChamp && <button onClick={() => setPage('LEADERBOARD')} className={`text-sm font-medium transition-colors ${page === 'LEADERBOARD' ? 'text-primary' : 'text-text-muted hover:text-white'}`}>Ranglista</button>}
+           </div>
+           <div className="flex items-center gap-3 pl-6 border-l border-border-dark">
+              <div className="text-right">
+                 <p className="text-sm font-bold text-white">{user?.username}</p>
+                 <button onClick={handleLogout} className="text-xs text-text-muted hover:text-red-400">Kilépés</button>
+              </div>
+              <div className="size-10 rounded-full bg-surface-dark border-2 border-border-dark flex items-center justify-center text-lg font-bold text-primary">
+                 {user?.username[0].toUpperCase()}
+              </div>
+           </div>
+        </div>
+
+        {/* Mobile Menu Toggle (Placeholder) */}
+        <div className="md:hidden flex items-center gap-3">
+             <div className="size-8 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center text-sm font-bold text-primary">
+                 {user?.username[0].toUpperCase()}
+              </div>
+             <button onClick={handleLogout}><Icon name="logout" className="text-text-muted" /></button>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-6xl mx-auto w-full p-6">
-        {page === 'DASHBOARD' && <Dashboard user={user!} onOpenChamp={(c) => { setActiveChamp(c); setPage('CHAMPIONSHIP'); }} triggerRefresh={refresh} />}
-        {page === 'MY_TIPS' && <MyTipsScreen stats={globalStats} user={user!} goDashboard={() => setPage('DASHBOARD')} />}
-        {page === 'CHAMPIONSHIP' && activeChamp && <ChampionshipView user={user!} champ={activeChamp} onBack={() => { setPage('DASHBOARD'); setActiveChamp(null); }} triggerRefresh={refresh} />}
-      </main>
+      <div className="max-w-[1440px] mx-auto p-4 md:p-8">
+         {page === 'DASHBOARD' && !activeChamp && <DashboardHome user={user!} onOpenChamp={(c) => { setActiveChamp(c); }} />}
+         {activeChamp && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+               {/* Left Column (Content) */}
+               <div className="lg:col-span-8 flex flex-col gap-6">
+                  {page === 'DASHBOARD' ? (
+                     <ChampionshipFeed user={user!} champ={activeChamp} triggerRefresh={refresh} />
+                  ) : (
+                     <LeaderboardPage champ={activeChamp} />
+                  )}
+               </div>
 
-      {/* Fixed Bottom Footer Stats */}
-      <div className="fixed bottom-0 left-0 right-0 bg-surface border-t border-primary/10 py-3 px-6 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-40">
-        <div className="max-w-6xl mx-auto flex justify-center md:justify-around items-center gap-8 text-primary">
-           <div className="flex flex-col items-center">
-              <span className="text-[10px] uppercase font-bold text-muted tracking-wider">Összes tipp</span>
-              <div className="flex items-center gap-1.5 font-bold text-lg"><Target size={18} /> {globalStats.totalTips}</div>
-           </div>
-           <div className="h-8 w-px bg-primary/10"></div>
-           <div className="flex flex-col items-center">
-              <span className="text-[10px] uppercase font-bold text-muted tracking-wider">Helyes tipp</span>
-              <div className="flex items-center gap-1.5 font-bold text-lg"><Activity size={18} /> {globalStats.correctTips}</div>
-           </div>
-           <div className="h-8 w-px bg-primary/10"></div>
-           <div className="flex flex-col items-center">
-              <span className="text-[10px] uppercase font-bold text-muted tracking-wider">Pontok</span>
-              <div className="flex items-center gap-1.5 font-bold text-lg"><Medal size={18} /> {globalStats.totalPoints}</div>
-           </div>
-        </div>
+               {/* Right Column (Sidebar) */}
+               <div className="hidden lg:flex lg:col-span-4 flex-col gap-6 sticky top-24">
+                  <SidebarWidget user={user!} champ={activeChamp} setPage={setPage} />
+                  <PromoWidget />
+               </div>
+            </div>
+         )}
       </div>
+      
+      {/* Mobile Bottom Nav */}
+      {activeChamp && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111a22] border-t border-border-dark flex justify-around p-3 z-50 safe-area-bottom">
+           <button onClick={() => setPage('DASHBOARD')} className={`flex flex-col items-center gap-1 ${page === 'DASHBOARD' ? 'text-primary' : 'text-text-muted'}`}>
+              <Icon name="calendar_month" />
+              <span className="text-[10px] font-bold">Meccsek</span>
+           </button>
+           <button onClick={() => setPage('LEADERBOARD')} className={`flex flex-col items-center gap-1 ${page === 'LEADERBOARD' ? 'text-primary' : 'text-text-muted'}`}>
+              <Icon name="leaderboard" />
+              <span className="text-[10px] font-bold">Ranglista</span>
+           </button>
+           <button onClick={() => {setActiveChamp(null); setPage('DASHBOARD');}} className="flex flex-col items-center gap-1 text-text-muted">
+              <Icon name="arrow_back" />
+              <span className="text-[10px] font-bold">Vissza</span>
+           </button>
+        </div>
+      )}
     </div>
   );
 }
 
-// --- Screens ---
+// --- Screens & Components ---
 
-function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
-  const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (isReg: boolean) => {
-    if (!username) return;
-    setLoading(true); setError('');
-    try {
-      const u = isReg ? await db.register(username) : await db.login(username);
-      onLogin(u);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <div className="w-full max-w-md bg-surface p-10 rounded-3xl border border-primary/5 shadow-xl text-center">
-        <div className="inline-flex p-4 rounded-full bg-input text-primary mb-6">
-          <LogOut size={32} className="rotate-180" /> {/* Just an icon resembling login */}
-        </div>
-        
-        <h1 className="text-3xl font-bold text-primary mb-2">Bejelentkezés</h1>
-        <p className="text-muted mb-8">Lépj be a fiókodba és kezdj el tippelni</p>
-        
-        <div className="space-y-5 text-left">
-          <div>
-            <label className="text-sm font-semibold text-primary mb-1.5 block">Felhasználónév</label>
-            <input 
-              value={username} onChange={e => setUsername(e.target.value)}
-              className="w-full bg-input border-transparent rounded-xl p-3.5 text-primary placeholder-primary/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-              placeholder="Add meg a felhasználóneved"
-            />
-          </div>
-          
-          {/* Fake password for visual match with image, technically ignored by current dummy auth */}
-          <div>
-            <label className="text-sm font-semibold text-primary mb-1.5 block">Jelszó</label>
-            <input 
-              type="password"
-              className="w-full bg-input border-transparent rounded-xl p-3.5 text-primary placeholder-primary/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-              placeholder="Add meg a jelszavad"
-            />
-          </div>
-          
-          {error && <div className="p-3 bg-red-100 text-red-600 text-sm rounded-lg font-medium">{error}</div>}
-
-          <button onClick={() => handleSubmit(false)} disabled={loading} className="w-full bg-primary hover:bg-slate-800 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 transition-all mt-4">
-            Bejelentkezés
-          </button>
-          
-          <div className="text-center mt-6 text-sm text-muted">
-             Még nincs fiókod? <button onClick={() => handleSubmit(true)} className="font-bold text-primary hover:underline">Regisztrálj most</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Dashboard({ user, onOpenChamp, triggerRefresh }: { user: User, onOpenChamp: (c: Championship) => void, triggerRefresh: number }) {
+function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Championship) => void }) {
   const [champs, setChamps] = useState<Championship[]>([]);
   const [showCreate, setShowCreate] = useState(false);
 
-  const load = async () => setChamps(await db.getMyChamps(user.id));
-  useEffect(() => { load(); }, [triggerRefresh]);
+  useEffect(() => { const l = async () => setChamps(await db.getMyChamps(user.id)); l(); }, [showCreate]);
 
   return (
-    <div>
-      <div className="flex justify-between items-end mb-8">
-         <div>
-            <h1 className="text-4xl font-extrabold text-primary mb-2">Bajnokságok</h1>
-            <p className="text-muted font-medium">Hozz létre új bajnokságot vagy csatlakozz meglévőhöz</p>
-         </div>
-         <button onClick={() => setShowCreate(true)} className="bg-primary hover:bg-slate-800 text-white px-5 py-2.5 rounded-full font-bold shadow-lg flex items-center gap-2 transition-all">
-            <Plus size={18} /> Új bajnokság
-         </button>
-      </div>
-
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {champs.length === 0 ? (
-          <div className="col-span-full py-16 text-center">
-             <div className="bg-surface inline-block p-6 rounded-full mb-4 shadow-sm"><Trophy size={48} className="text-accent opacity-50"/></div>
-             <h3 className="text-xl font-bold text-primary">Még nincsenek bajnokságaid</h3>
-             <p className="text-muted mt-2">Hozz létre egyet a fenti gombbal!</p>
-          </div>
-        ) : (
-          champs.map(c => (
-             <div key={c.id} onClick={() => onOpenChamp(c)} className="bg-surface p-6 rounded-2xl border-2 border-transparent hover:border-primary/10 shadow-card hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between h-64 relative overflow-hidden">
-                <div className="absolute top-4 right-4 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">Aktív</div>
-                
-                <div>
-                  <div className="w-12 h-12 bg-input rounded-xl flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
-                      <Trophy size={24} />
-                  </div>
-                  <h3 className="text-xl font-bold text-primary mb-2 line-clamp-1">{c.name}</h3>
-                  <p className="text-muted text-sm line-clamp-2">Baráti tippverseny a legjobb sporteseményekre.</p>
-                </div>
-
-                <div className="space-y-2 mt-4 pt-4 border-t border-primary/5">
-                   <div className="flex items-center gap-2 text-xs font-medium text-muted">
-                      <Calendar size={14} /> 2024. Szezon
-                   </div>
-                   <div className="flex items-center gap-2 text-xs font-medium text-muted">
-                      <UserIcon size={14} /> {c.participants.length} résztvevő
-                   </div>
-                   <div className="text-[10px] font-bold text-primary mt-2">
-                      Kód: <span className="font-mono bg-white px-1 rounded">{c.joinCode}</span>
-                   </div>
-                </div>
-             </div>
-          ))
-        )}
-      </div>
-
-      {showCreate && <CreateChampModal userId={user.id} onClose={() => {setShowCreate(false); load();}} />}
-    </div>
-  );
-}
-
-function MyTipsScreen({ stats, user, goDashboard }: { stats: any, user: User, goDashboard: () => void }) {
-  // Ez az oldal a 2. kép alapján ("Saját tippjeim")
-  return (
-    <div>
-       <div className="mb-10">
-          <h1 className="text-4xl font-extrabold text-primary mb-2">Saját tippjeim</h1>
-          <p className="text-muted font-medium">Tekintsd meg az összes leadott tipped és a megszerzett pontokat</p>
-       </div>
-
-       {/* Summary Cards */}
-       <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-surface p-8 rounded-2xl shadow-card text-center border border-primary/5">
-             <div className="w-14 h-14 mx-auto bg-input rounded-full flex items-center justify-center text-primary mb-4">
-               <Target size={28} />
-             </div>
-             <div className="text-sm font-bold text-muted uppercase tracking-wider mb-1">Összes tipp</div>
-             <div className="text-4xl font-extrabold text-primary">{stats.totalTips}</div>
-          </div>
-          <div className="bg-surface p-8 rounded-2xl shadow-card text-center border border-primary/5">
-             <div className="w-14 h-14 mx-auto bg-surface border-2 border-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
-               <Trophy size={28} />
-             </div>
-             <div className="text-sm font-bold text-muted uppercase tracking-wider mb-1">Helyes tipp</div>
-             <div className="text-4xl font-extrabold text-primary">{stats.correctTips}</div>
-          </div>
-          <div className="bg-surface p-8 rounded-2xl shadow-card text-center border border-primary/5">
-             <div className="w-14 h-14 mx-auto bg-input rounded-full flex items-center justify-center text-primary mb-4">
-               <Medal size={28} />
-             </div>
-             <div className="text-sm font-bold text-muted uppercase tracking-wider mb-1">Összes pont</div>
-             <div className="text-4xl font-extrabold text-primary">{stats.totalPoints}</div>
-          </div>
-       </div>
-
-       {/* Empty State CTA */}
-       {stats.totalTips === 0 && (
-         <div className="bg-surface rounded-3xl p-12 text-center border border-primary/5 shadow-card">
-            <div className="w-20 h-20 bg-input rounded-full flex items-center justify-center text-primary mx-auto mb-6">
-               <Target size={40} />
-            </div>
-            <h2 className="text-2xl font-bold text-primary mb-2">Még nincsenek tippjeid</h2>
-            <p className="text-muted mb-8 max-w-md mx-auto">Menj a bajnokságokhoz, válassz ki egy aktív meccset és kezdj el tippelni, hogy felkerülj a ranglistára!</p>
-            <button onClick={goDashboard} className="bg-primary hover:bg-slate-800 text-white px-8 py-3 rounded-full font-bold shadow-lg transition-all">
-               Bajnokságok megtekintése
-            </button>
-         </div>
-       )}
-    </div>
-  );
-}
-
-function ChampionshipView({ user, champ, onBack, triggerRefresh }: { user: User, champ: Championship, onBack: () => void, triggerRefresh: number }) {
-  const [tab, setTab] = useState<'MATCHES' | 'TABLE' | 'CHAT'>('MATCHES');
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
-
-  const isAdmin = champ.adminId === user.id;
-
-  const load = async () => setMatches(await db.getMatches(champ.id));
-  useEffect(() => { load(); }, [champ, triggerRefresh]);
-
-  const handleMatchCreate = async (m: any) => {
-    await db.createMatch(m);
-    setShowCreate(false);
-    load();
-  };
-
-  return (
-    <div>
-      <button onClick={onBack} className="text-sm font-bold text-muted hover:text-primary mb-6 flex items-center gap-1 transition-colors">← Vissza a bajnokságokhoz</button>
-      
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-        <div>
-           <div className="flex items-center gap-3 mb-1">
-             <div className="p-2 bg-input rounded-lg text-primary"><Trophy size={20} /></div>
-             <span className="text-sm font-bold text-secondary uppercase tracking-wider">Bajnokság</span>
-           </div>
-           <h1 className="text-3xl md:text-4xl font-extrabold text-primary">{champ.name}</h1>
-        </div>
-        
-        {isAdmin && tab === 'MATCHES' && (
-          <button onClick={() => setShowCreate(true)} className="bg-primary hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-md">
-            <Plus size={16}/> Új Meccs
-          </button>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-white/50 p-1 rounded-xl w-fit mb-8">
-         {['MATCHES', 'TABLE', 'CHAT'].map((t) => (
-           <button 
-             key={t}
-             onClick={() => setTab(t as any)}
-             className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${tab === t ? 'bg-primary text-white shadow-md' : 'text-muted hover:bg-white'}`}
-           >
-             {t === 'MATCHES' ? 'Mérkőzések' : t === 'TABLE' ? 'Ranglista' : 'Üzenőfal'}
+     <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+           <h1 className="text-3xl font-black text-white tracking-tight">Bajnokságaim</h1>
+           <button onClick={() => setShowCreate(true)} className="bg-primary hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-primary/20 flex items-center gap-2 transition-all">
+              <Icon name="add" className="text-xl" /> Új Bajnokság
            </button>
-         ))}
-      </div>
-
-      {tab === 'MATCHES' ? (
-        <div className="grid gap-4">
-          {matches.length === 0 ? <div className="text-center py-16 text-muted font-medium bg-surface rounded-2xl border border-primary/5">Nincsenek még meccsek rögzítve ebben a bajnokságban.</div> : 
-           matches.map(m => <MatchCard key={m.id} match={m} user={user} isAdmin={isAdmin} refresh={load} />)}
         </div>
-      ) : tab === 'TABLE' ? (
-        <Leaderboard champ={champ} />
-      ) : (
-        <ChatTab user={user} champ={champ} />
-      )}
-
-      {showCreate && <CreateMatchModal champId={champ.id} onClose={() => setShowCreate(false)} onSave={handleMatchCreate} />}
-    </div>
-  );
-}
-
-function Leaderboard({ champ }: { champ: Championship }) {
-  const [data, setData] = useState<any[]>([]);
-  
-  useEffect(() => {
-    const calc = async () => {
-      const matches = await db.getMatches(champ.id);
-      const results = db.getResults();
-      const users = db.getAllUsers();
-      const scores: Record<string, any> = {};
-      
-      champ.participants.forEach(u => scores[u] = { pts: 0, tips: 0, correct: 0 });
-      
-      matches.filter(m => m.status === 'FINISHED').forEach(m => {
-        const result = results.find(r => r.matchId === m.id);
-        if(!result) return;
-        const bets = db.getBets(m.id);
-        bets.forEach(b => {
-          if(!scores[b.userId]) return;
-          scores[b.userId].tips++;
-          m.questions.forEach(q => {
-             if(String(b.answers[q.id]) === String(result.answers[q.id])) {
-               scores[b.userId].pts += q.points;
-               scores[b.userId].correct++;
-             }
-          });
-        });
-      });
-      setData(Object.entries(scores).map(([uid, s]) => ({ uid, name: users[uid] || '?', ...s })).sort((a,b) => b.pts - a.pts));
-    };
-    calc();
-  }, [champ]);
-
-  return (
-    <div className="space-y-4">
-      <div className="text-center mb-8">
-         <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
-           <Trophy size={32} />
-         </div>
-         <h2 className="text-3xl font-extrabold text-primary">Ranglista</h2>
-         <p className="text-muted">A legjobb tippelők versenyeznek a csúcsért</p>
-      </div>
-
-      <div className="grid gap-3 max-w-3xl mx-auto">
-        {data.map((d, i) => (
-           <div key={d.uid} className={`relative flex items-center p-5 rounded-xl border transition-all ${i === 0 ? 'bg-surface border-accent/30 shadow-lg scale-105 z-10' : 'bg-surface border-primary/5 hover:border-primary/20'}`}>
-              <div className="w-10 font-bold text-xl text-muted text-center flex-shrink-0">
-                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
-              </div>
-              <div className="ml-4 flex-1">
-                 <div className="font-bold text-primary text-lg flex items-center gap-2">
-                    {d.name}
-                    {i === 0 && <span className="text-[10px] bg-accent text-white px-2 py-0.5 rounded-full uppercase tracking-wide">Bajnok</span>}
-                 </div>
-                 <div className="text-xs text-muted font-medium mt-1">{d.tips} tipp &bull; {d.correct} helyes</div>
-              </div>
-              <div className="text-right">
-                 <div className="text-[10px] uppercase font-bold text-muted tracking-wider">Pontok</div>
-                 <div className="text-3xl font-extrabold text-primary">{d.pts}</div>
-              </div>
-           </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MatchCard({ match, user, isAdmin, refresh }: { match: Match, user: User, isAdmin: boolean, refresh: () => void | Promise<void> }) {
-  const [hasBet, setHasBet] = useState(false);
-  const [points, setPoints] = useState<number | null>(null);
-  const [modalMode, setModalMode] = useState<'BET' | 'RESULT' | null>(null);
-  const [stats, setStats] = useState<any>(null);
-
-  const start = new Date(match.startTime);
-  const isLocked = new Date() > start;
-  const isFinished = match.status === 'FINISHED';
-
-  useEffect(() => {
-    const bets = db.getBets(match.id);
-    const myBet = bets.find(b => b.userId === user.id);
-    setHasBet(!!myBet);
-
-    if (isFinished && myBet) {
-      const results = db.getResults().find(r => r.matchId === match.id);
-      if (results) {
-        let p = 0;
-        match.questions.forEach(q => { if (String(myBet.answers[q.id]) === String(results.answers[q.id])) p += q.points; });
-        setPoints(p);
-      }
-    }
-    
-    if (myBet || isFinished || isLocked) {
-      setStats(db.getMatchStats(match.id));
-    }
-  }, [match, user, isFinished]);
-
-  return (
-    <>
-      <div className={`bg-surface p-6 rounded-2xl border border-primary/5 shadow-card hover:shadow-md transition-all relative overflow-hidden group ${isFinished ? 'opacity-80 grayscale-[0.3]' : ''}`}>
-        {isLocked && !isFinished && <div className="absolute top-0 right-0 bg-accent text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">ÉLŐ / LEZÁRT</div>}
-        {isFinished && <div className="absolute top-0 right-0 bg-slate-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">VÉGE</div>}
         
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-           {/* Date & Info */}
-           <div className="md:w-1/4">
-              <div className="flex items-center gap-2 text-xs font-bold text-muted uppercase tracking-wider mb-1">
-                 <Calendar size={12} /> {start.toLocaleDateString()}
-              </div>
-              <div className="font-bold text-primary">{start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
-              <div className="mt-2 text-xs font-medium text-secondary">{match.questions.length} kérdés</div>
-           </div>
-
-           {/* Matchup */}
-           <div className="flex-1 flex items-center justify-center gap-4 md:gap-8">
-              <div className="text-lg md:text-xl font-extrabold text-primary text-right flex-1">{match.player1}</div>
-              <div className="w-8 h-8 rounded-full bg-input flex items-center justify-center text-xs font-bold text-primary/70">VS</div>
-              <div className="text-lg md:text-xl font-extrabold text-primary text-left flex-1">{match.player2}</div>
-           </div>
-
-           {/* Action / Status */}
-           <div className="md:w-1/4 flex flex-col items-end justify-center gap-2">
-              {points !== null ? (
-                 <div className="bg-secondary/10 text-secondary border border-secondary/20 px-3 py-1 rounded-lg font-bold text-lg flex items-center gap-1">
-                    +{points} Pont
+        <div className="grid md:grid-cols-2 gap-6">
+           {champs.map(c => (
+              <div key={c.id} onClick={() => onOpenChamp(c)} className="bg-surface-dark border border-border-dark p-6 rounded-2xl hover:border-primary/50 cursor-pointer transition-all group relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Icon name="emoji_events" className="text-8xl text-white" />
                  </div>
-              ) : (
-                <>
-                   {!isFinished && !isLocked && (
-                      <button onClick={() => setModalMode('BET')} className={`w-full md:w-auto px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm ${hasBet ? 'bg-white border border-primary/20 text-primary hover:bg-slate-50' : 'bg-primary text-white hover:bg-slate-800'}`}>
-                         {hasBet ? 'Tipp módosítása' : 'Tipp leadása'}
-                      </button>
-                   )}
-                   {isAdmin && !isFinished && (
-                      <button onClick={() => setModalMode('RESULT')} className="text-xs font-bold text-muted hover:text-primary underline">
-                         Eredmény rögzítése
-                      </button>
-                   )}
-                </>
-              )}
-           </div>
+                 <div className="relative z-10">
+                    <h3 className="text-2xl font-bold text-white mb-2">{c.name}</h3>
+                    <div className="flex items-center gap-4 text-text-muted text-sm font-medium">
+                       <span className="flex items-center gap-1"><Icon name="group" className="text-base"/> {c.participants.length} résztvevő</span>
+                       <span className="bg-border-dark px-2 py-0.5 rounded text-white text-xs font-mono">{c.joinCode}</span>
+                    </div>
+                 </div>
+              </div>
+           ))}
+           {champs.length === 0 && (
+              <div className="col-span-full py-12 text-center border-2 border-dashed border-border-dark rounded-2xl">
+                 <p className="text-text-muted">Még nincs bajnokságod.</p>
+              </div>
+           )}
         </div>
-
-        {/* Mini Stats Bar */}
-        {stats && (
-           <div className="mt-4 pt-4 border-t border-primary/5 flex items-center gap-4 overflow-hidden">
-              <div className="flex items-center gap-1 text-[10px] font-bold text-muted uppercase"><BarChart3 size={12} /> Tippek ({stats.totalBets})</div>
-              {match.questions[0].type === QuestionType.WINNER && (
-                  <div className="flex-1 h-1.5 bg-input rounded-full overflow-hidden flex">
-                      <div className="bg-secondary" style={{width: `${Math.round(((stats.stats[match.questions[0].id]?.[match.player1] || 0) / (stats.totalBets || 1)) * 100)}%`}}></div>
-                      <div className="bg-slate-300" style={{width: `${Math.round(((stats.stats[match.questions[0].id]?.['Döntetlen'] || 0) / (stats.totalBets || 1)) * 100)}%`}}></div>
-                  </div>
-              )}
-           </div>
-        )}
-      </div>
-      
-      {modalMode === 'BET' && <BetModal match={match} user={user} onClose={() => { setModalMode(null); refresh(); }} />}
-      {modalMode === 'RESULT' && <ResultModal match={match} onClose={() => { setModalMode(null); refresh(); }} />}
-    </>
+        {showCreate && <CreateChampModal userId={user.id} onClose={() => setShowCreate(false)} />}
+     </div>
   );
 }
 
-// --- Modals & Utilities (Style Updated) ---
+const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, refresh: () => void }> = ({ match, user, isAdmin, refresh }) => {
+   const [expanded, setExpanded] = useState(false);
+   const [answers, setAnswers] = useState<any>({});
+   const [hasBet, setHasBet] = useState(false);
+   const [points, setPoints] = useState<number | null>(null);
+
+   const start = new Date(match.startTime);
+   const isLocked = new Date() > start;
+   const isFinished = match.status === 'FINISHED';
+   
+   // Init
+   useEffect(() => {
+      const bets = db.getBets(match.id);
+      const myBet = bets.find(b => b.userId === user.id);
+      if (myBet) {
+         setHasBet(true);
+         setAnswers(myBet.answers);
+      } else {
+         setHasBet(false);
+         setAnswers({});
+      }
+      
+      if (isFinished && myBet) {
+         const result = db.getResults().find(r => r.matchId === match.id);
+         if (result) {
+            let p = 0;
+            match.questions.forEach(q => { if (String(myBet.answers[q.id]) === String(result.answers[q.id])) p += q.points; });
+            setPoints(p);
+         }
+      }
+   }, [match, user, isFinished, expanded]); // Reload when expanded to ensure fresh state
+
+   const toggleExpand = () => {
+      if (!expanded) {
+         // Open logic
+      }
+      setExpanded(!expanded);
+   };
+
+   const handleSave = async () => {
+      await db.saveBet({ userId: user.id, matchId: match.id, answers, timestamp: new Date().toISOString() });
+      setHasBet(true);
+      setExpanded(false);
+      refresh();
+   };
+
+   // Result handling for admin
+   const [resultMode, setResultMode] = useState(false);
+   const handleResultSave = async () => {
+      if(confirm('Lezárod a meccset?')) {
+         await db.closeMatch({ matchId: match.id, answers });
+         setResultMode(false);
+         refresh();
+      }
+   };
+
+   // Colors & Status
+   const statusColor = isFinished ? 'text-text-muted' : isLocked ? 'text-accent' : 'text-primary';
+   const statusText = isFinished ? 'VÉGE' : isLocked ? 'ÉLŐ / ZÁRT' : 'TIPPELHETŐ';
+
+   return (
+      <div className={`bg-surface-dark rounded-2xl border border-border-dark overflow-hidden shadow-lg transition-all duration-300 ${expanded ? 'ring-1 ring-primary/30' : 'hover:border-primary/30'}`}>
+         {/* Header Row */}
+         <div className="bg-[#15202b] p-4 flex flex-col md:flex-row justify-between items-center border-b border-border-dark gap-4 cursor-pointer" onClick={toggleExpand}>
+            <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-start flex-1">
+               {/* Player 1 */}
+               <div className="flex items-center gap-3 flex-1 md:flex-none justify-end md:justify-start">
+                   <div className="text-right md:text-left">
+                      <p className="text-white font-bold text-lg leading-tight">{match.player1}</p>
+                   </div>
+                   <div className="size-10 rounded-full bg-surface-dark border-2 border-border-dark flex items-center justify-center font-bold text-text-muted">
+                      {match.player1[0]}
+                   </div>
+               </div>
+
+               {/* VS / Time */}
+               <div className="flex flex-col items-center px-2">
+                  <span className="text-text-muted text-[10px] font-bold bg-input-dark px-2 py-1 rounded mb-1">{start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                  <span className="text-white font-black text-xl italic opacity-50">VS</span>
+               </div>
+
+               {/* Player 2 */}
+               <div className="flex items-center gap-3 flex-1 md:flex-none">
+                   <div className="size-10 rounded-full bg-surface-dark border-2 border-border-dark flex items-center justify-center font-bold text-text-muted">
+                      {match.player2[0]}
+                   </div>
+                   <div className="text-left">
+                      <p className="text-white font-bold text-lg leading-tight">{match.player2}</p>
+                   </div>
+               </div>
+            </div>
+
+            {/* Status & Points */}
+            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+               {points !== null ? (
+                   <div className="bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-full font-bold text-sm">
+                      +{points} PONT
+                   </div>
+               ) : (
+                  <div className="flex items-center gap-2">
+                      <span className={`relative flex h-2 w-2 ${isFinished ? 'hidden' : ''}`}>
+                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isLocked ? 'bg-accent' : 'bg-primary'}`}></span>
+                        <span className={`relative inline-flex rounded-full h-2 w-2 ${isLocked ? 'bg-accent' : 'bg-primary'}`}></span>
+                      </span>
+                      <p className={`${statusColor} text-xs font-bold uppercase tracking-wider`}>{statusText}</p>
+                  </div>
+               )}
+               <Icon name={expanded ? "expand_less" : "expand_more"} className="text-text-muted" />
+            </div>
+         </div>
+
+         {/* Expanded Area (Prediction Form) */}
+         {expanded && (
+            <div className="p-6 bg-[#1a2632]">
+               {!isLocked && !isFinished ? (
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {match.questions.map(q => (
+                         <div key={q.id} className="space-y-3">
+                            <label className="text-text-muted text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                               <Icon name="emoji_events" className="text-sm" /> {q.label} <span className="text-primary ml-1">({q.points}p)</span>
+                            </label>
+                            
+                            {q.type === QuestionType.WINNER && (
+                               <div className="flex gap-2 p-1 bg-[#111a22] rounded-full border border-border-dark">
+                                  {[match.player1, match.player2].map(p => (
+                                     <button key={p} onClick={() => setAnswers({...answers, [q.id]: p})} className={`flex-1 py-2 px-4 rounded-full font-bold text-sm transition-all flex justify-center items-center gap-2 ${answers[q.id] === p ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white hover:bg-border-dark'}`}>
+                                        {p} {answers[q.id] === p && <Icon name="check_circle" className="text-sm" />}
+                                     </button>
+                                  ))}
+                               </div>
+                            )}
+
+                            {q.type === QuestionType.EXACT_SCORE && (
+                               <div className="flex items-center bg-[#111a22] rounded-full border border-border-dark px-4 py-2">
+                                  <input 
+                                    className="bg-transparent text-white font-mono font-bold text-lg w-full text-center outline-none" 
+                                    placeholder="pl. 3-1"
+                                    value={answers[q.id] || ''}
+                                    onChange={e => setAnswers({...answers, [q.id]: e.target.value})}
+                                  />
+                               </div>
+                            )}
+
+                            {q.type === QuestionType.OVER_UNDER && (
+                               <div className="flex gap-2">
+                                  <button onClick={() => setAnswers({...answers, [q.id]: 'OVER'})} className={`flex-1 py-2.5 rounded-full font-bold text-sm border transition-all ${answers[q.id] === 'OVER' ? 'bg-background-dark border-accent text-accent shadow-glow' : 'bg-background-dark border-border-dark text-text-muted hover:border-text-muted'}`}>FELETT</button>
+                                  <button onClick={() => setAnswers({...answers, [q.id]: 'UNDER'})} className={`flex-1 py-2.5 rounded-full font-bold text-sm border transition-all ${answers[q.id] === 'UNDER' ? 'bg-background-dark border-accent text-accent shadow-glow' : 'bg-background-dark border-border-dark text-text-muted hover:border-text-muted'}`}>ALATT</button>
+                               </div>
+                            )}
+                            
+                            {(q.type === QuestionType.CHOICE && q.options) && (
+                               <div className="flex flex-col gap-2">
+                                  {q.options.map(opt => (
+                                      <button key={opt} onClick={() => setAnswers({...answers, [q.id]: opt})} className={`w-full py-2 bg-background-dark border rounded-full text-sm font-medium transition-all ${answers[q.id] === opt ? 'border-primary text-white' : 'border-border-dark text-text-muted'}`}>
+                                          {opt}
+                                      </button>
+                                  ))}
+                               </div>
+                            )}
+                         </div>
+                      ))}
+                      <div className="md:col-span-2 pt-4 border-t border-border-dark flex justify-end">
+                          <button onClick={handleSave} className="bg-primary hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg shadow-blue-500/20 transition-all transform active:scale-95 flex items-center gap-2">
+                             <Icon name="save" /> Tipp Mentése
+                          </button>
+                      </div>
+                   </div>
+               ) : (
+                   <div className="text-center py-6">
+                       <p className="text-text-muted mb-2">{isFinished ? 'A mérkőzés véget ért.' : 'A tippelés lezárult.'}</p>
+                       <div className="inline-flex flex-col gap-2 text-left bg-[#111a22] p-4 rounded-xl border border-border-dark min-w-[250px]">
+                          <span className="text-xs font-bold text-primary uppercase">Tippjeid:</span>
+                          {match.questions.map(q => (
+                             <div key={q.id} className="flex justify-between text-sm">
+                                <span className="text-text-muted">{q.label}:</span>
+                                <span className="font-bold text-white">{answers[q.id] || '-'}</span>
+                             </div>
+                          ))}
+                       </div>
+                       
+                       {/* Admin Result Entry Block */}
+                       {isAdmin && !isFinished && (
+                          <div className="mt-8 border-t border-border-dark pt-4">
+                             <h4 className="text-white font-bold mb-4">Eredmény Rögzítése (Admin)</h4>
+                             <div className="grid gap-4 max-w-md mx-auto">
+                                {match.questions.map(q => (
+                                   <input key={q.id} placeholder={q.label} value={answers[q.id] || ''} onChange={e => setAnswers({...answers, [q.id]: e.target.value})} className="bg-input-dark border border-border-dark rounded p-2 text-white" />
+                                ))}
+                                <button onClick={handleResultSave} className="bg-accent text-black font-bold py-2 rounded">Eredmény Mentése</button>
+                             </div>
+                          </div>
+                       )}
+                   </div>
+               )}
+            </div>
+         )}
+      </div>
+   );
+};
+
+function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: Championship, triggerRefresh: number }) {
+   const [matches, setMatches] = useState<Match[]>([]);
+   const [showCreateMatch, setShowCreateMatch] = useState(false);
+   const isAdmin = champ.adminId === user.id;
+
+   const load = async () => setMatches(await db.getMatches(champ.id));
+   useEffect(() => { load(); }, [champ, triggerRefresh, showCreateMatch]);
+
+   // Helper: Find next match for hero
+   const nextMatch = matches.find(m => m.status === 'SCHEDULED' && new Date(m.startTime) > new Date());
+
+   return (
+      <>
+         {/* Hero Section */}
+         <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center bg-gradient-to-r from-surface-dark to-[#16202a] p-6 rounded-2xl border border-border-dark shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+            <div className="flex flex-col gap-2 z-10 relative">
+               <div className="flex items-center gap-2 mb-1">
+                  <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-1 rounded">LIVE</span>
+                  <h1 className="text-white text-2xl md:text-3xl font-black leading-tight tracking-tight">{champ.name}</h1>
+               </div>
+               <p className="text-text-muted text-sm md:text-base max-w-lg">
+                  {nextMatch ? `Következő meccs: ${nextMatch.player1} vs ${nextMatch.player2}` : 'Jelenleg nincs aktív mérkőzés.'}
+               </p>
+            </div>
+            {/* Simple Timer Visual */}
+            <div className="flex items-center gap-4 bg-[#101922]/50 p-4 rounded-xl border border-dashed border-border-dark backdrop-blur-sm z-10">
+               <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-text-muted uppercase tracking-wider mb-1">MÉRKŐZÉSEK</span>
+                  <div className="text-2xl font-mono font-bold text-white">{matches.length}</div>
+               </div>
+            </div>
+         </div>
+
+         {/* Matches Header */}
+         <div className="flex items-center justify-between">
+             <h2 className="text-white text-xl font-bold flex items-center gap-2">
+                <Icon name="calendar_month" className="text-primary" /> Következő Meccsek
+             </h2>
+             {isAdmin && (
+                <button onClick={() => setShowCreateMatch(true)} className="px-4 py-2 bg-surface-dark border border-border-dark text-white text-sm font-medium rounded-full hover:bg-border-dark transition-colors flex items-center gap-1">
+                   <Icon name="add" className="text-sm" /> Új Meccs
+                </button>
+             )}
+         </div>
+
+         {/* Match List */}
+         <div className="flex flex-col gap-6">
+            {matches.map(m => (
+               <InlineMatchCard key={m.id} match={m} user={user} isAdmin={isAdmin} refresh={load} />
+            ))}
+            {matches.length === 0 && <div className="text-center py-10 text-text-muted">Nincsenek meccsek rögzítve.</div>}
+         </div>
+
+         {showCreateMatch && <CreateMatchModal champId={champ.id} onClose={() => setShowCreateMatch(false)} />}
+      </>
+   );
+}
+
+// --- Leaderboard Page & Widget ---
+
+function LeaderboardPage({ champ }: { champ: Championship }) {
+    const [entries, setEntries] = useState<any[]>([]);
+    
+    useEffect(() => {
+        const load = async () => {
+            const matches = await db.getMatches(champ.id);
+            const users = db.getAllUsers();
+            const results = db.getResults();
+            const scores: Record<string, any> = {};
+            
+            champ.participants.forEach(u => scores[u] = { id: u, name: users[u] || '?', points: 0, correct: 0 });
+            
+            matches.filter(m => m.status === 'FINISHED').forEach(m => {
+                const res = results.find(r => r.matchId === m.id);
+                if(!res) return;
+                const bets = db.getBets(m.id);
+                bets.forEach(b => {
+                    if(scores[b.userId]) {
+                        m.questions.forEach(q => {
+                           if(String(b.answers[q.id]) === String(res.answers[q.id])) {
+                               scores[b.userId].points += q.points;
+                               scores[b.userId].correct++;
+                           }
+                        });
+                    }
+                });
+            });
+            setEntries(Object.values(scores).sort((a,b) => b.points - a.points));
+        };
+        load();
+    }, [champ]);
+
+    return (
+        <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white">Ranglista</h1>
+                <p className="text-text-muted text-base">Kövesd a helyezésed a {champ.name} bajnokságban.</p>
+            </div>
+            
+            <div className="w-full overflow-hidden rounded-2xl border border-border-dark bg-surface-dark shadow-xl">
+                <div className="overflow-x-auto">
+                   <table className="w-full text-left border-collapse">
+                      <thead>
+                         <tr className="bg-[#15202b] border-b border-border-dark">
+                            <th className="px-6 py-4 text-xs font-semibold text-text-muted uppercase tracking-wider w-24">Hely</th>
+                            <th className="px-6 py-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Név</th>
+                            <th className="px-6 py-4 text-xs font-semibold text-text-muted uppercase tracking-wider text-center">Találat</th>
+                            <th className="px-6 py-4 text-xs font-semibold text-primary uppercase tracking-wider text-right">Pontok</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-dark">
+                         {entries.map((e, i) => (
+                             <tr key={e.id} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="px-6 py-4">
+                                   <div className={`flex items-center justify-center w-12 h-8 rounded-full border text-sm font-bold ${
+                                      i===0 ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' :
+                                      i===1 ? 'bg-slate-300/10 text-slate-300 border-slate-300/20' :
+                                      i===2 ? 'bg-orange-400/10 text-orange-400 border-orange-400/20' :
+                                      'bg-border-dark text-text-muted border-transparent'
+                                   }`}>
+                                      {i < 3 && <Icon name="emoji_events" className="text-base mr-1" />} {i+1}
+                                   </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                   <div className="flex items-center gap-3">
+                                      <div className="size-10 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center font-bold text-text-muted">{e.name[0]}</div>
+                                      <p className="text-white font-bold group-hover:text-primary transition-colors">{e.name}</p>
+                                   </div>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500">{e.correct}</span>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                   <span className="text-2xl font-black text-white tracking-tight">{e.points}</span>
+                                </td>
+                             </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SidebarWidget({ user, champ, setPage }: { user: User, champ: Championship, setPage: any }) {
+    // Mini leaderboard logic similar to full page but simplified
+    const [top3, setTop3] = useState<any[]>([]);
+    const [myRank, setMyRank] = useState<any>(null);
+
+    useEffect(() => {
+        // ... (Similar logic to LeaderboardPage, just slicing top 3 and finding user)
+        // For brevity, using simplified mock or repeating logic:
+        const load = async () => {
+             const matches = await db.getMatches(champ.id);
+             const users = db.getAllUsers();
+             const results = db.getResults();
+             const scores: Record<string, any> = {};
+             champ.participants.forEach(u => scores[u] = { id: u, name: users[u] || '?', points: 0 });
+             matches.filter(m => m.status === 'FINISHED').forEach(m => {
+                 const res = results.find(r => r.matchId === m.id);
+                 if(!res) return;
+                 const bets = db.getBets(m.id);
+                 bets.forEach(b => {
+                     if(scores[b.userId]) {
+                         m.questions.forEach(q => { if(String(b.answers[q.id]) === String(res.answers[q.id])) scores[b.userId].points += q.points; });
+                     }
+                 });
+             });
+             const sorted = Object.values(scores).sort((a,b) => b.points - a.points);
+             setTop3(sorted.slice(0, 3));
+             const myIdx = sorted.findIndex(s => s.id === user.id);
+             if(myIdx !== -1) setMyRank({ ...sorted[myIdx], rank: myIdx + 1 });
+        };
+        load();
+    }, [champ]);
+
+    return (
+       <div className="bg-surface-dark rounded-2xl border border-border-dark p-6">
+          <div className="flex items-center justify-between mb-6">
+             <h3 className="text-white text-lg font-bold">Top Játékosok</h3>
+             <button onClick={() => setPage('LEADERBOARD')} className="text-primary text-sm font-medium hover:underline">Teljes lista</button>
+          </div>
+          <div className="flex flex-col gap-1">
+             {top3.map((entry, i) => (
+                <div key={entry.id} className={`flex items-center justify-between p-3 rounded-xl border ${i===0 ? 'bg-[#15202b] border-border-dark' : 'border-transparent'}`}>
+                   <div className="flex items-center gap-3">
+                      <span className={`font-black text-lg w-6 text-center ${i===0 ? 'text-accent' : 'text-text-muted'}`}>{i+1}</span>
+                      <div className="size-8 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center text-xs text-white">{entry.name[0]}</div>
+                      <span className={`text-sm font-medium ${i===0 ? 'text-white' : 'text-text-muted'}`}>{entry.name}</span>
+                   </div>
+                   <span className={`${i===0 ? 'text-white' : 'text-text-muted'} font-bold`}>{entry.points} pts</span>
+                </div>
+             ))}
+             
+             {/* Current User if not in top 3 */}
+             {myRank && myRank.rank > 3 && (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30 mt-2">
+                   <div className="flex items-center gap-3">
+                      <span className="text-white font-bold text-lg w-6 text-center">{myRank.rank}</span>
+                      <div className="size-8 rounded-full bg-primary flex items-center justify-center text-xs text-white">{myRank.name[0]}</div>
+                      <span className="text-white font-medium text-sm">Te ({myRank.name})</span>
+                   </div>
+                   <span className="text-white font-bold">{myRank.points} pts</span>
+                </div>
+             )}
+          </div>
+       </div>
+    );
+}
+
+function PromoWidget() {
+   return (
+      <div className="bg-gradient-to-br from-primary to-blue-700 rounded-2xl p-6 text-center shadow-lg shadow-blue-900/50 relative overflow-hidden">
+         <div className="relative z-10">
+             <Icon name="stars" className="text-white text-4xl mb-2" />
+             <h3 className="text-white font-black text-xl mb-1">Prémium Bajnokság</h3>
+             <p className="text-white/80 text-sm mb-4">Hozz létre korlátlan privát ligát és statisztikát.</p>
+             <button className="bg-white text-primary font-bold py-2 px-6 rounded-full text-sm hover:bg-gray-100 transition-colors">Upgrade</button>
+         </div>
+      </div>
+   )
+}
+
+function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
+    const [username, setUsername] = useState('');
+    const handleSubmit = async (isReg: boolean) => {
+        if (!username) return;
+        try { onLogin(isReg ? await db.register(username) : await db.login(username)); } catch (e: any) { alert(e.message); }
+    };
+    return (
+       <div className="min-h-screen flex items-center justify-center p-4 bg-background-dark">
+          <div className="w-full max-w-md bg-surface-dark p-8 rounded-2xl border border-border-dark text-center shadow-2xl">
+             <div className="inline-flex p-4 rounded-full bg-[#111a22] text-primary mb-6 border border-border-dark">
+                <Icon name="sports_esports" className="text-4xl" />
+             </div>
+             <h1 className="text-3xl font-black text-white mb-2">HaverTipp</h1>
+             <p className="text-text-muted mb-8">Lépj be és kezdj el tippelni</p>
+             <div className="space-y-4">
+                <input value={username} onChange={e => setUsername(e.target.value)} className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white placeholder-text-muted focus:border-primary outline-none" placeholder="Felhasználónév" />
+                <button onClick={() => handleSubmit(false)} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold shadow-glow transition-all">Belépés</button>
+                <div className="text-sm text-text-muted">Nincs fiókod? <button onClick={() => handleSubmit(true)} className="text-primary font-bold hover:underline">Regisztráció</button></div>
+             </div>
+          </div>
+       </div>
+    );
+}
 
 function CreateChampModal({ userId, onClose }: { userId: string, onClose: () => void }) {
-    const [name, setName] = useState('');
-    const [code, setCode] = useState('');
-    const [joinCode, setJoinCode] = useState('');
-
-    const handleCreate = async () => {
-        if(!name || !code) return;
-        try { await db.createChamp(name, code, userId); onClose(); } catch(e) { alert('Hiba!'); }
-    }
-    const handleJoin = async () => {
-        if(!joinCode) return;
-        try { await db.joinChamp(joinCode, userId); onClose(); } catch(e) { alert('Hiba!'); }
-    }
+    const [name, setName] = useState(''); const [code, setCode] = useState(''); const [joinCode, setJoinCode] = useState('');
+    const handleCreate = async () => { if(!name || !code) return; try { await db.createChamp(name, code, userId); onClose(); } catch(e) { alert('Hiba!'); } }
+    const handleJoin = async () => { if(!joinCode) return; try { await db.joinChamp(joinCode, userId); onClose(); } catch(e) { alert('Hiba!'); } }
 
     return (
-        <div className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-surface w-full max-w-lg rounded-3xl shadow-2xl p-8 border border-white">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-surface-dark w-full max-w-lg rounded-2xl shadow-2xl p-8 border border-border-dark">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-extrabold text-primary">Új Bajnokság</h2>
-                    <button onClick={onClose} className="text-muted hover:text-primary"><Plus size={24} className="rotate-45" /></button>
+                    <h2 className="text-2xl font-black text-white">Bajnokság Kezelése</h2>
+                    <button onClick={onClose}><Icon name="close" className="text-text-muted hover:text-white"/></button>
                 </div>
-
-                <div className="space-y-8">
+                <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-bold text-secondary uppercase tracking-wider mb-4">Létrehozás</h3>
-                        <div className="flex gap-3">
-                            <input className="flex-1 bg-input rounded-xl px-4 py-3 font-medium outline-none text-primary placeholder-primary/40 focus:ring-2 focus:ring-secondary" placeholder="Név (pl. EB 2024)" value={name} onChange={e => setName(e.target.value)} />
-                            <input className="w-24 bg-input rounded-xl px-4 py-3 font-medium outline-none text-primary placeholder-primary/40 focus:ring-2 focus:ring-secondary" placeholder="Kód" value={code} onChange={e => setCode(e.target.value)} />
+                        <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Új Létrehozása</h3>
+                        <div className="flex gap-2">
+                            <input className="flex-1 bg-input-dark border border-border-dark rounded-lg p-3 text-white" placeholder="Név" value={name} onChange={e => setName(e.target.value)} />
+                            <input className="w-24 bg-input-dark border border-border-dark rounded-lg p-3 text-white" placeholder="Kód" value={code} onChange={e => setCode(e.target.value)} />
                         </div>
-                        <button onClick={handleCreate} className="w-full mt-3 bg-primary text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">Létrehozás</button>
+                        <button onClick={handleCreate} className="w-full mt-2 bg-primary text-white py-2 rounded-lg font-bold">Létrehozás</button>
                     </div>
-
-                    <div className="relative">
-                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-primary/10"></div></div>
-                        <div className="relative flex justify-center text-sm"><span className="px-2 bg-surface text-muted">VAGY</span></div>
-                    </div>
-
-                    <div>
-                        <h3 className="text-sm font-bold text-secondary uppercase tracking-wider mb-4">Csatlakozás meglévőhöz</h3>
-                        <div className="flex gap-3">
-                            <input className="flex-1 bg-input rounded-xl px-4 py-3 font-medium outline-none text-primary placeholder-primary/40 focus:ring-2 focus:ring-secondary" placeholder="Belépőkód" value={joinCode} onChange={e => setJoinCode(e.target.value)} />
-                            <button onClick={handleJoin} className="bg-white border-2 border-primary/10 text-primary px-6 rounded-xl font-bold hover:bg-slate-50 transition-all">Belépés</button>
+                    <div className="border-t border-border-dark pt-6">
+                        <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Csatlakozás</h3>
+                        <div className="flex gap-2">
+                            <input className="flex-1 bg-input-dark border border-border-dark rounded-lg p-3 text-white" placeholder="Belépőkód" value={joinCode} onChange={e => setJoinCode(e.target.value)} />
+                            <button onClick={handleJoin} className="bg-white text-black px-6 rounded-lg font-bold hover:bg-gray-200">Belépés</button>
                         </div>
                     </div>
                 </div>
@@ -576,143 +635,34 @@ function CreateChampModal({ userId, onClose }: { userId: string, onClose: () => 
     )
 }
 
-function BetModal({ match, user, onClose }: { match: Match, user: User, onClose: () => void }) {
-  const [answers, setAnswers] = useState<any>({});
-  useEffect(() => {
-    const bets = db.getBets(match.id);
-    const myBet = bets.find(b => b.userId === user.id);
-    if (myBet) setAnswers(myBet.answers);
-  }, []);
-  const save = async () => {
-    await db.saveBet({ userId: user.id, matchId: match.id, answers, timestamp: new Date().toISOString() });
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-primary/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface w-full max-w-xl rounded-3xl shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
-        <div className="bg-primary p-6 text-white text-center">
-            <h3 className="font-bold text-xl">{match.player1} vs {match.player2}</h3>
-            <p className="text-slate-400 text-sm mt-1">Add le a tippjeidet a mérkőzésre</p>
-        </div>
-        <div className="p-8 overflow-y-auto space-y-6 flex-1">
-          {match.questions.map(q => (
-            <div key={q.id}>
-              <div className="flex justify-between items-center mb-2">
-                  <div className="font-bold text-primary">{q.label}</div>
-                  <div className="text-xs font-bold bg-accent/20 text-accent px-2 py-0.5 rounded">{q.points} pont</div>
-              </div>
-              
-              {q.type === QuestionType.WINNER ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {[match.player1, match.player2].map(p => (
-                    <button key={p} onClick={() => setAnswers({...answers, [q.id]: p})} className={`p-3 rounded-xl border-2 font-bold transition-all ${answers[q.id] === p ? 'bg-secondary border-secondary text-white' : 'border-primary/5 text-muted hover:border-primary/20'}`}>{p}</button>
-                  ))}
-                </div>
-              ) : q.type === QuestionType.OVER_UNDER ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {['OVER', 'UNDER'].map(o => (
-                     <button key={o} onClick={() => setAnswers({...answers, [q.id]: o})} className={`p-3 rounded-xl border-2 font-bold transition-all ${answers[q.id] === o ? 'bg-secondary border-secondary text-white' : 'border-primary/5 text-muted hover:border-primary/20'}`}>{o === 'OVER' ? 'Felett' : 'Alatt'}</button>
-                  ))}
-                </div>
-              ) : (
-                <input value={answers[q.id] || ''} onChange={e => setAnswers({...answers, [q.id]: e.target.value})} className="w-full bg-input rounded-xl p-3 outline-none focus:ring-2 focus:ring-secondary font-medium" placeholder="Írd be a tippet..." />
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="p-6 border-t border-primary/5 flex justify-end gap-3 bg-slate-50">
-          <button onClick={onClose} className="text-muted font-bold px-4 py-2 hover:bg-slate-200 rounded-lg">Mégse</button>
-          <button onClick={save} className="bg-primary text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-slate-800">Tipp Mentése</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ResultModal({ match, onClose }: { match: Match, onClose: () => void }) {
-    const [answers, setAnswers] = useState<any>({});
-    const save = async () => { if(confirm('Ez lezárja a meccset!')) { await db.closeMatch({ matchId: match.id, answers }); onClose(); }};
-    return (
-      <div className="fixed inset-0 bg-primary/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-surface w-full max-w-md rounded-3xl p-8 shadow-2xl">
-          <h3 className="font-bold text-xl text-primary mb-6">Eredmény rögzítése</h3>
-          <div className="space-y-4">
-             {match.questions.map(q => (
-               <div key={q.id}>
-                 <div className="text-xs text-muted font-bold mb-1">{q.label}</div>
-                 <input value={answers[q.id] || ''} onChange={e => setAnswers({...answers, [q.id]: e.target.value})} className="w-full bg-input rounded-lg p-3 outline-none font-medium" />
-               </div>
-             ))}
-          </div>
-          <div className="flex justify-end gap-3 mt-8">
-            <button onClick={onClose} className="text-muted font-bold">Mégse</button>
-            <button onClick={save} className="bg-secondary text-white px-4 py-2 rounded-lg font-bold">Lezárás</button>
-          </div>
-        </div>
-      </div>
-    )
-}
-
-function CreateMatchModal({ champId, onClose, onSave }: { champId: string, onClose: () => void, onSave: (m: any) => void }) {
+function CreateMatchModal({ champId, onClose }: { champId: string, onClose: () => void }) {
+    // Simplified create match for brevity, sticking to design feel
     const [p1, setP1] = useState(''); const [p2, setP2] = useState(''); const [date, setDate] = useState('');
-    const handleSave = () => { if(!p1 || !p2 || !date) return; onSave({ championshipId: champId, player1: p1, player2: p2, startTime: new Date(date).toISOString(), status: 'SCHEDULED', questions: [{ id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Győztes', points: 2 }, { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Pontos eredmény', points: 5 }] }); };
-    const applyPreset = (type: any) => { 
-        if(!p1 || !p2 || !date) { alert('Adatok!'); return; }
-        // Simple simplified preset logic just for demo
-        onSave({ championshipId: champId, player1: p1, player2: p2, startTime: new Date(date).toISOString(), status: 'SCHEDULED', questions: [{ id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Győztes', points: 2, options: [p1, p2] }, { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Pontos eredmény', points: 5 }] }); 
+    const save = async (type: 'F' | 'D') => {
+        if(!p1 || !p2 || !date) return;
+        const questions = type === 'F' 
+           ? [{ id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Győztes', points: 2, options: [p1, p2, 'Döntetlen'] }, { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Pontos Eredmény', points: 5 }]
+           : [{ id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Győztes', points: 2, options: [p1, p2] }, { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Szett Eredmény', points: 5 }, { id: crypto.randomUUID(), type: QuestionType.OVER_UNDER, label: '180-asok (6.5)', points: 1 }, { id: crypto.randomUUID(), type: QuestionType.CHOICE, label: 'Magasabb Kiszálló', points: 1, options: [p1, p2] }];
+        
+        await db.createMatch({ championshipId: champId, player1: p1, player2: p2, startTime: new Date(date).toISOString(), status: 'SCHEDULED', questions });
+        onClose();
     };
-  
-    return (
-      <div className="fixed inset-0 bg-primary/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-surface w-full max-w-md rounded-3xl p-8">
-          <h3 className="font-bold text-xl text-primary mb-6">Új Meccs</h3>
-          <div className="space-y-4">
-            <input className="w-full bg-input rounded-xl p-3 font-medium outline-none" placeholder="Hazai" value={p1} onChange={e => setP1(e.target.value)} />
-            <input className="w-full bg-input rounded-xl p-3 font-medium outline-none" placeholder="Vendég" value={p2} onChange={e => setP2(e.target.value)} />
-            <input type="datetime-local" className="w-full bg-input rounded-xl p-3 font-medium outline-none" value={date} onChange={e => setDate(e.target.value)} />
-          </div>
-          <div className="flex gap-2 mt-4">
-             <button onClick={() => applyPreset('F')} className="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-bold hover:bg-slate-200">Foci Sablon</button>
-             <button onClick={() => applyPreset('D')} className="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-bold hover:bg-slate-200">Darts Sablon</button>
-          </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button onClick={onClose} className="text-muted font-bold">Mégse</button>
-            <button onClick={handleSave} className="bg-primary text-white px-4 py-2 rounded-lg font-bold">Létrehozás</button>
-          </div>
-        </div>
-      </div>
-    );
-}
 
-function ChatTab({ user, champ }: { user: User, champ: Championship }) {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [text, setText] = useState('');
-    const bottomRef = useRef<HTMLDivElement>(null);
-    const load = async () => setMessages(await db.getMessages(champ.id));
-    useEffect(() => { load(); const i = setInterval(load, 2000); return () => clearInterval(i); }, [champ.id]);
-    useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-    const send = async () => { if (!text.trim()) return; await db.sendMessage({ championshipId: champ.id, userId: user.id, username: user.username, text: text, timestamp: new Date().toISOString() }); setText(''); load(); };
-  
     return (
-      <div className="flex flex-col h-[500px] bg-surface rounded-2xl border border-primary/5 shadow-card overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.length === 0 && <div className="text-center text-muted font-medium mt-10 opacity-50">Írj az első üzenetet!</div>}
-          {messages.map(m => (
-            <div key={m.id} className={`flex flex-col ${m.userId === user.id ? 'items-end' : 'items-start'}`}>
-              <div className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm font-medium shadow-sm ${m.userId === user.id ? 'bg-primary text-white rounded-br-sm' : 'bg-input text-primary rounded-bl-sm'}`}>
-                {m.userId !== user.id && <div className="text-[10px] opacity-50 font-bold mb-0.5">{m.username}</div>}
-                {m.text}
-              </div>
-              <div className="text-[10px] text-muted mt-1 px-1">{new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-surface-dark w-full max-w-md rounded-2xl p-6 border border-border-dark">
+                <h3 className="text-xl font-bold text-white mb-4">Új Mérkőzés</h3>
+                <div className="space-y-3 mb-4">
+                    <input className="w-full bg-input-dark border border-border-dark rounded-lg p-3 text-white" placeholder="Hazai" value={p1} onChange={e => setP1(e.target.value)} />
+                    <input className="w-full bg-input-dark border border-border-dark rounded-lg p-3 text-white" placeholder="Vendég" value={p2} onChange={e => setP2(e.target.value)} />
+                    <input type="datetime-local" className="w-full bg-input-dark border border-border-dark rounded-lg p-3 text-white" value={date} onChange={e => setDate(e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => save('F')} className="bg-surface-dark border border-border-dark hover:border-primary text-white py-3 rounded-lg font-bold">⚽ Foci Sablon</button>
+                    <button onClick={() => save('D')} className="bg-surface-dark border border-border-dark hover:border-primary text-white py-3 rounded-lg font-bold">🎯 Darts Sablon</button>
+                </div>
+                <button onClick={onClose} className="w-full mt-4 text-text-muted">Mégse</button>
             </div>
-          ))}
-          <div ref={bottomRef} />
         </div>
-        <div className="p-4 bg-slate-50 border-t border-primary/5 flex gap-3">
-          <input className="flex-1 bg-white border border-primary/10 rounded-xl px-4 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-secondary" placeholder="Írj üzenetet..." value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} />
-          <button onClick={send} className="bg-secondary hover:bg-teal-600 text-white p-2.5 rounded-xl transition-all shadow-md"><Send size={18} /></button>
-        </div>
-      </div>
-    );
-  }
+    )
+}
