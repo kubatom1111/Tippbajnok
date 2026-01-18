@@ -8,19 +8,16 @@ const Icon = ({ name, className = "" }: { name: string, className?: string }) =>
 );
 
 export default function App() {
-  const [isConfigured, setIsConfigured] = useState(db.isConfigured());
   const [user, setUser] = useState<User | null>(null);
   const [page, setPage] = useState<'AUTH' | 'DASHBOARD' | 'LEADERBOARD'>('AUTH');
   const [activeChamp, setActiveChamp] = useState<Championship | null>(null);
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
-    if (isConfigured) {
-        const u = db.getSession();
-        if (u) { setUser(u); setPage('DASHBOARD'); }
-        else setPage('AUTH');
-    }
-  }, [isConfigured]);
+    const u = db.getSession();
+    if (u) { setUser(u); setPage('DASHBOARD'); }
+    else setPage('AUTH');
+  }, []);
 
   const handleLogout = () => {
     db.logout();
@@ -28,14 +25,7 @@ export default function App() {
     setPage('AUTH');
   };
   
-  const handleReset = () => {
-      if(confirm("Ez törli a beállításokat is. Folytatod?")) {
-          db.resetConfig();
-      }
-  };
-
-  if (!isConfigured) return <SetupScreen onConfigured={() => setIsConfigured(true)} />;
-  if (page === 'AUTH') return <AuthScreen onLogin={(u) => { setUser(u); setPage('DASHBOARD'); }} onReset={handleReset} />;
+  if (page === 'AUTH') return <AuthScreen onLogin={(u) => { setUser(u); setPage('DASHBOARD'); }} />;
 
   return (
     <div className="min-h-screen bg-background-dark text-white font-sans selection:bg-primary selection:text-white pb-20 md:pb-0">
@@ -94,45 +84,6 @@ export default function App() {
 }
 
 // --- Screens & Components ---
-
-function SetupScreen({ onConfigured }: { onConfigured: () => void }) {
-    const [url, setUrl] = useState('');
-    const [key, setKey] = useState('');
-
-    const handleSave = () => {
-        if (!url || !key) return alert('Kérlek töltsd ki mindkét mezőt!');
-        db.configureSupabase(url, key);
-        onConfigured();
-    };
-
-    return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-background-dark">
-            <div className="w-full max-w-lg bg-surface-dark p-8 rounded-2xl border border-border-dark shadow-2xl">
-                <div className="flex items-center gap-3 mb-6">
-                    <Icon name="cloud_upload" className="text-primary text-3xl"/>
-                    <h1 className="text-2xl font-black text-white">Adatbázis Beállítása</h1>
-                </div>
-                <p className="text-text-muted text-sm mb-6">
-                    A többjátékos módhoz szükség van egy ingyenes <b>Supabase</b> adatbázisra. 
-                    Hozz létre egy projektet a <a href="https://supabase.com" target="_blank" className="text-primary underline">supabase.com</a> oldalon, 
-                    futtasd le az SQL parancsokat, majd másold be az adatokat ide.
-                </p>
-                
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-xs font-bold text-text-muted uppercase">Project URL</label>
-                        <input value={url} onChange={e => setUrl(e.target.value)} className="w-full mt-1 bg-input-dark border border-border-dark rounded-xl p-3 text-white" placeholder="https://xyz.supabase.co" />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-text-muted uppercase">API Key (anon public)</label>
-                        <input value={key} onChange={e => setKey(e.target.value)} className="w-full mt-1 bg-input-dark border border-border-dark rounded-xl p-3 text-white" placeholder="eyJh..." />
-                    </div>
-                    <button onClick={handleSave} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold mt-4">Mentés és Indítás</button>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Championship) => void }) {
   const [champs, setChamps] = useState<Championship[]>([]);
@@ -406,7 +357,7 @@ function PromoWidget() {
    )
 }
 
-function AuthScreen({ onLogin, onReset }: { onLogin: (u: User) => void, onReset: () => void }) {
+function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
     const [isRegistering, setIsRegistering] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -426,9 +377,6 @@ function AuthScreen({ onLogin, onReset }: { onLogin: (u: User) => void, onReset:
     return (
        <div className="min-h-screen flex items-center justify-center p-4 bg-background-dark">
           <div className="w-full max-w-md bg-surface-dark p-8 rounded-2xl border border-border-dark text-center shadow-2xl relative">
-             <div className="absolute top-4 right-4">
-                 <button onClick={onReset} className="text-xs text-text-muted hover:text-red-500 opacity-50 hover:opacity-100" title="Beállítások törlése">Reset</button>
-             </div>
              <div className="inline-flex p-4 rounded-full bg-[#111a22] text-primary mb-6 border border-border-dark">
                 <Icon name="sports_esports" className="text-4xl" />
              </div>
