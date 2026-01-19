@@ -162,21 +162,32 @@ function ChatPage({ user, champ }: { user: User, champ: Championship }) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [text, setText] = useState('');
     const [sending, setSending] = useState(false);
-    const endRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const loadMessages = async () => {
         const msgs = await db.getChatMessages(champ.id);
-        setMessages(msgs);
+        // Csak akkor frissítsünk, ha változott az adathalmaz (pl. új üzenet),
+        // hogy ne villogjon vagy ugráljon feleslegesen.
+        setMessages(prev => {
+            if (prev.length === msgs.length && prev[prev.length-1]?.id === msgs[msgs.length-1]?.id) {
+                return prev;
+            }
+            return msgs;
+        });
     };
 
     useEffect(() => {
         loadMessages();
-        const interval = setInterval(loadMessages, 3000); // Polling for updates
+        const interval = setInterval(loadMessages, 3000); 
         return () => clearInterval(interval);
     }, [champ.id]);
 
     useEffect(() => {
-        endRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // ScrollToBottom logikája:
+        // Csak a konténert görgetjük, így nem ugrál az egész oldal
+        if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
     }, [messages]);
 
     const handleSend = async (e: React.FormEvent) => {
@@ -186,16 +197,17 @@ function ChatPage({ user, champ }: { user: User, champ: Championship }) {
         try {
             await db.sendChatMessage(champ.id, user.id, text.trim());
             setText('');
-            await loadMessages();
-        } catch (err) {
+            await loadMessages(); 
+        } catch (err: any) {
             console.error(err);
+            alert("Hiba: " + (err.message || "Nem sikerült elküldeni az üzenetet."));
         } finally {
             setSending(false);
         }
     };
 
     return (
-        <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden flex flex-col h-[calc(100vh-140px)] md:h-[600px] relative shadow-2xl">
+        <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden flex flex-col h-[calc(100dvh-180px)] md:h-[600px] relative shadow-2xl">
             {/* Header */}
             <div className="p-4 border-b border-border-dark bg-[#15202b] flex items-center gap-3 shrink-0">
                 <div className="size-10 bg-primary/20 rounded-full flex items-center justify-center text-primary">
@@ -208,7 +220,10 @@ function ChatPage({ user, champ }: { user: User, champ: Championship }) {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#101922] scroll-smooth">
+            <div 
+                ref={containerRef}
+                className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#101922] scroll-smooth"
+            >
                 {messages.length === 0 && (
                     <div className="text-center py-10 opacity-50">
                         <Icon name="forum" className="text-5xl mb-2"/>
@@ -230,7 +245,7 @@ function ChatPage({ user, champ }: { user: User, champ: Championship }) {
                                     <span className="text-xs font-bold text-text-muted">{msg.username}</span>
                                     <span className="text-[10px] text-white/30">{time}</span>
                                 </div>
-                                <div className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                                <div className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-sm break-words ${
                                     isMe 
                                     ? 'bg-primary text-white rounded-tr-none' 
                                     : 'bg-surface-dark text-white border border-border-dark rounded-tl-none'
@@ -241,7 +256,6 @@ function ChatPage({ user, champ }: { user: User, champ: Championship }) {
                         </div>
                     );
                 })}
-                <div ref={endRef} />
             </div>
 
             {/* Input Area */}

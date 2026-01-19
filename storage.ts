@@ -209,30 +209,31 @@ export const getGlobalStats = async () => {
 // --- Chat ---
 
 export const getChatMessages = async (champId: string): Promise<ChatMessage[]> => {
-    const { data, error } = await supabase.from('chat_messages')
-        .select(`
-            id, 
-            championship_id, 
-            user_id, 
-            text, 
-            timestamp, 
-            users ( username )
-        `)
+    // 1. Üzenetek lekérése join nélkül a stabilitásért
+    const { data: msgs, error } = await supabase.from('chat_messages')
+        .select('*')
         .eq('championship_id', champId)
         .order('timestamp', { ascending: true })
         .limit(50);
 
     if (error) {
-        // Fallback if table doesn't exist yet in the user's supabase project
-        console.error("Chat error (table missing?):", error);
+        console.error("Chat error:", error);
         return [];
     }
+    
+    if (!msgs || msgs.length === 0) return [];
 
-    return data.map((d: any) => ({
+    // 2. Felhasználónevek lekérése külön
+    const userIds = [...new Set(msgs.map((m: any) => m.user_id))];
+    const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
+    
+    const userMap = users ? users.reduce((acc:any, u:any) => ({...acc, [u.id]: u.username}), {}) : {};
+
+    return msgs.map((d: any) => ({
         id: d.id,
         championshipId: d.championship_id,
         userId: d.user_id,
-        username: d.users?.username || 'Ismeretlen',
+        username: userMap[d.user_id] || 'Ismeretlen',
         text: d.text,
         timestamp: d.timestamp
     }));
