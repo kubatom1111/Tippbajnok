@@ -325,6 +325,8 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
    const start = new Date(match.startTime);
    const isLocked = new Date() > start;
    const isFinished = match.status === 'FINISHED';
+   const now = new Date();
+   const isLive = !isFinished && isLocked; // Simplified LIVE logic
    
    // Init (Async)
    useEffect(() => {
@@ -387,24 +389,44 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
    }
 
    return (
-      <div className={`bg-surface-dark rounded-2xl border border-border-dark overflow-hidden shadow-lg transition-all ${expanded ? 'ring-1 ring-primary/30' : ''}`}>
-         <div className="bg-[#15202b] p-4 flex flex-col md:flex-row justify-between items-center border-b border-border-dark gap-4 cursor-pointer hover:bg-[#1a2632] transition-colors" onClick={() => setExpanded(!expanded)}>
-            <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-start flex-1">
-               <div className="font-bold text-white text-lg w-1/3 text-right md:w-auto">{match.player1}</div>
-               <div className="flex flex-col items-center px-2">
-                  <span className="text-text-muted text-[10px] font-bold bg-input-dark px-2 py-1 rounded mb-1">{start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                  <span className="text-white font-black opacity-30 text-xs">VS</span>
-               </div>
-               <div className="font-bold text-white text-lg w-1/3 text-left md:w-auto">{match.player2}</div>
-            </div>
-            <div className="flex items-center gap-3">
-               {hasBet && !isFinished && <div className="hidden md:flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20 font-bold uppercase"><Icon name="check_circle" className="text-sm"/> Leadva</div>}
-               {points !== null ? <div className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-black">+{points} PONT</div> : <div className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${isFinished ? 'bg-slate-700 text-slate-400' : 'bg-green-500/20 text-green-500'}`}>{isFinished ? 'VÉGE' : 'TIPPELHETŐ'}</div>}
-               <Icon name={expanded ? "expand_less" : "expand_more"} className="text-text-muted" />
-            </div>
+      <div className={`relative bg-[#15202b] rounded-2xl border overflow-hidden shadow-lg transition-all ${expanded ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border-dark hover:border-primary/30'}`}>
+         
+         {/* Top Banner Status */}
+         <div className="flex items-center justify-between px-4 py-2 bg-black/20 text-xs font-bold border-b border-white/5">
+             <div className="flex items-center gap-2">
+                 {isLive && <span className="flex items-center gap-1 text-red-500 animate-pulse"><span className="size-2 rounded-full bg-red-500"></span> ÉLŐ</span>}
+                 {!isLive && !isFinished && <span className="text-text-muted">{start.toLocaleDateString()} - {start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>}
+                 {isFinished && <span className="text-slate-400">VÉGET ÉRT</span>}
+             </div>
+             {hasBet && !isFinished && (
+                 <div className="flex items-center gap-1 text-green-400 bg-green-400/10 px-2 py-0.5 rounded uppercase tracking-wider">
+                     <Icon name="confirmation_number" className="text-xs"/> Tipp Leadva
+                 </div>
+             )}
          </div>
+
+         {/* Main Card Content */}
+         <div className="p-5 flex flex-col cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setExpanded(!expanded)}>
+             <div className="flex justify-between items-center mb-4">
+                 <div className="text-xl md:text-2xl font-black text-white">{match.player1}</div>
+                 <div className="text-xs font-black text-text-muted bg-surface-dark px-2 py-1 rounded-full border border-border-dark">VS</div>
+                 <div className="text-xl md:text-2xl font-black text-white text-right">{match.player2}</div>
+             </div>
+             
+             <div className="flex justify-between items-end">
+                 <div className="flex flex-col gap-1">
+                     <span className="text-xs text-text-muted font-bold uppercase">{match.questions.length} fogadási piac</span>
+                     {points !== null && <span className="text-primary font-black text-lg bg-primary/10 px-2 py-0.5 rounded w-fit">+{points} PONT</span>}
+                 </div>
+                 <button className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${expanded ? 'bg-surface-dark text-white' : 'bg-primary text-white shadow-lg shadow-primary/20'}`}>
+                     {expanded ? 'Bezárás' : (hasBet ? 'Tipp Mutatása' : 'Tippelés')} <Icon name={expanded ? "expand_less" : "chevron_right"} className="text-base"/>
+                 </button>
+             </div>
+         </div>
+
+         {/* Expandable Betting/Admin Area */}
          {expanded && (
-            <div className="p-6 bg-[#1a2632]">
+            <div className="p-6 bg-[#1a2632] border-t border-border-dark animate-in slide-in-from-top-2 duration-200">
                
                {/* ADMIN TABS */}
                {isAdmin && (
@@ -534,20 +556,96 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
 function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: Championship, triggerRefresh: number }) {
    const [matches, setMatches] = useState<Match[]>([]);
    const [showCreateMatch, setShowCreateMatch] = useState(false);
+   const [stats, setStats] = useState<{rank: number, points: number, totalPlayers: number, top3: any[]}>({rank: 0, points: 0, totalPlayers: 0, top3: []});
    const isAdmin = champ.adminId === user.id;
 
-   useEffect(() => { const l = async () => setMatches(await db.getMatches(champ.id)); l(); }, [champ, triggerRefresh, showCreateMatch]);
+   useEffect(() => { 
+       const load = async () => {
+           setMatches(await db.getMatches(champ.id));
+           
+           // Calculate quick stats for header
+           const users = await db.getAllUsers();
+           const results = await db.fetchResults();
+           const matchesData = await db.getMatches(champ.id);
+           const scores: Record<string, any> = {};
+           
+           if(champ.participants) {
+               champ.participants.forEach(u => scores[u] = { id: u, name: users[u] || '?', points: 0 });
+           }
+           
+           for (const m of matchesData.filter(x => x.status === 'FINISHED')) {
+               const res = results.find(r => r.matchId === m.id);
+               if(!res) continue;
+               const bets = await db.fetchBetsForMatch(m.id);
+               bets.forEach(b => {
+                   if(scores[b.userId]) {
+                       m.questions.forEach(q => {
+                          if(String(b.answers[q.id]) === String(res.answers[q.id])) scores[b.userId].points += q.points;
+                       });
+                   }
+               });
+           }
+           
+           const sorted = Object.values(scores).sort((a,b) => b.points - a.points);
+           const myRankIndex = sorted.findIndex(x => x.id === user.id);
+           
+           setStats({
+               rank: myRankIndex + 1,
+               points: scores[user.id]?.points || 0,
+               totalPlayers: sorted.length,
+               top3: sorted.slice(0, 3)
+           });
+       }; 
+       load(); 
+    }, [champ, triggerRefresh, showCreateMatch, user]);
 
    return (
       <>
-         <div className="flex items-center justify-between mb-2">
-            <div>
-                 <h1 className="text-3xl font-black text-white">{champ.name}</h1>
-                 <p className="text-text-muted text-sm flex items-center gap-1 mt-1"><Icon name="key" className="text-sm"/> Kód: <span className="text-white font-mono bg-surface-dark px-2 rounded border border-border-dark">{champ.joinCode}</span></p>
-            </div>
-             {isAdmin && <button onClick={() => setShowCreateMatch(true)} className="bg-primary/10 hover:bg-primary/20 text-primary px-4 py-2 rounded-lg font-bold text-sm border border-primary/20 transition-all flex items-center gap-2"><Icon name="add" className="text-lg"/> Új Meccs</button>}
+         {/* Mobile Dashboard / Hero */}
+         <div className="mb-6 space-y-4">
+             <div className="flex items-center justify-between">
+                <div>
+                     <h1 className="text-3xl font-black text-white">{champ.name}</h1>
+                     <p className="text-text-muted text-sm flex items-center gap-1 mt-1"><Icon name="key" className="text-sm"/> Kód: <span className="text-white font-mono bg-surface-dark px-2 rounded border border-border-dark">{champ.joinCode}</span></p>
+                </div>
+                 {isAdmin && <button onClick={() => setShowCreateMatch(true)} className="bg-primary/10 hover:bg-primary/20 text-primary size-10 flex items-center justify-center rounded-xl font-bold border border-primary/20 transition-all"><Icon name="add" className="text-2xl"/></button>}
+             </div>
+             
+             {/* Personal Stats Card */}
+             <div className="bg-gradient-to-r from-blue-900 to-[#15202b] rounded-2xl p-5 border border-white/10 shadow-lg relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-[60px] -mr-10 -mt-10 pointer-events-none"></div>
+                 <div className="relative z-10 grid grid-cols-3 divide-x divide-white/10">
+                     <div className="text-center px-2">
+                         <div className="text-xs text-blue-200 uppercase font-bold mb-1">Helyezés</div>
+                         <div className="text-2xl font-black text-white">{stats.rank}. <span className="text-sm text-white/50 font-normal">/ {stats.totalPlayers}</span></div>
+                     </div>
+                     <div className="text-center px-2">
+                         <div className="text-xs text-blue-200 uppercase font-bold mb-1">Pontszám</div>
+                         <div className="text-2xl font-black text-primary">{stats.points}</div>
+                     </div>
+                     <div className="text-center px-2">
+                         <div className="text-xs text-blue-200 uppercase font-bold mb-1">Aktív Meccs</div>
+                         <div className="text-2xl font-black text-white">{matches.filter(m => m.status === 'SCHEDULED').length}</div>
+                     </div>
+                 </div>
+             </div>
+
+             {/* Mobile Top 3 Mini-Leaderboard */}
+             <div className="lg:hidden">
+                 <div className="text-xs font-bold text-text-muted uppercase mb-2 ml-1">Top 3 Játékos</div>
+                 <div className="grid grid-cols-3 gap-2">
+                     {stats.top3.map((p, i) => (
+                         <div key={p.id} className="bg-surface-dark border border-border-dark rounded-xl p-2 flex flex-col items-center text-center">
+                             <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${i===0?'bg-yellow-500 text-black':i===1?'bg-slate-400 text-black':'bg-amber-700 text-white'}`}>{i+1}</div>
+                             <div className="text-xs font-bold text-white truncate w-full">{p.name}</div>
+                             <div className="text-xs text-primary font-bold">{p.points}p</div>
+                         </div>
+                     ))}
+                     {stats.top3.length === 0 && <div className="col-span-3 text-center text-xs text-text-muted italic">Még nincs adat.</div>}
+                 </div>
+             </div>
          </div>
-         <div className="bg-gradient-to-r from-transparent via-border-dark to-transparent h-px w-full mb-6"></div>
+
          <div className="flex flex-col gap-4">
             {matches.map(m => <InlineMatchCard key={m.id} match={m} user={user} isAdmin={isAdmin} refresh={() => setMatches([...matches])} />)}
             {matches.length === 0 && (
