@@ -1,367 +1,281 @@
 import React, { useState, useEffect } from 'react';
-import { Match, QuestionType } from '../types';
-import { getBetsForMatch, saveBet, getResult, saveResult } from '../services/storageService';
-import { Button } from './Button';
+import { Match, QuestionType, User } from '../types';
+import * as db from '../storage';
 
 interface MatchListProps {
   matches: Match[];
-  currentUser: any;
+  currentUser: User;
   isAdmin: boolean;
   refreshTrigger: () => void;
 }
 
+// Icon helper
+const Icon = ({ name, className = "" }: { name: string, className?: string }) => (
+  <span className={`material-symbols-outlined ${className}`}>{name}</span>
+);
+
 export const MatchList: React.FC<MatchListProps> = ({ matches, currentUser, isAdmin, refreshTrigger }) => {
-  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'BET' | 'RESULT' | null>(null);
-
-  const handleDelete = (matchId: string) => {
-      if (confirm('Biztosan törölni szeretnéd ezt a mérkőzést?')) {
-          console.log("Törlés:", matchId);
-          alert("Törlés funkció hamarosan.");
-      }
-  }
-
   if (matches.length === 0) {
     return (
-        <div className="flex flex-col items-center justify-center p-12 bg-sport-card rounded-xl border border-slate-800 text-center">
-            <div className="bg-slate-800/50 p-4 rounded-full mb-4">
-                <svg className="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-            </div>
-            <h3 className="text-sport-text font-medium text-lg">Nincsenek mérkőzések</h3>
-            <p className="text-sport-muted text-sm mt-1">Jelenleg nincs aktív meccs ebben a bajnokságban.</p>
+        <div className="text-center py-12 border-2 border-dashed border-[#233648] rounded-2xl">
+            <p className="text-[#92adc9]">Nincsenek mérkőzések ebben a bajnokságban.</p>
         </div>
     );
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-6">
       {matches.map(match => (
-        <MatchCard 
+        <InlineMatchCard 
           key={match.id} 
           match={match} 
-          currentUser={currentUser}
-          isAdmin={isAdmin}
-          onOpenBet={() => { setSelectedMatchId(match.id); setMode('BET'); }}
-          onOpenResult={() => { setSelectedMatchId(match.id); setMode('RESULT'); }}
-          onDelete={() => handleDelete(match.id)}
+          user={currentUser} 
+          isAdmin={isAdmin} 
+          refresh={refreshTrigger} 
         />
       ))}
-
-      {selectedMatchId && mode === 'BET' && (
-        <BettingModal 
-            match={matches.find(m => m.id === selectedMatchId)!} 
-            userId={currentUser.id} 
-            onClose={() => { setSelectedMatchId(null); setMode(null); }}
-            onSave={() => { setSelectedMatchId(null); setMode(null); refreshTrigger(); }}
-        />
-      )}
-
-      {selectedMatchId && mode === 'RESULT' && isAdmin && (
-          <ResultModal
-            match={matches.find(m => m.id === selectedMatchId)!}
-            onClose={() => { setSelectedMatchId(null); setMode(null); }}
-            onSave={() => { setSelectedMatchId(null); setMode(null); refreshTrigger(); }}
-          />
-      )}
     </div>
   );
 };
 
-const MatchCard: React.FC<{ 
-    match: Match; 
-    currentUser: any; 
-    isAdmin: boolean;
-    onOpenBet: () => void;
-    onOpenResult: () => void;
-    onDelete: () => void;
-}> = ({ match, currentUser, isAdmin, onOpenBet, onOpenResult, onDelete }) => {
-  const [hasBet, setHasBet] = useState(false);
-  const [userPoints, setUserPoints] = useState<number | null>(null);
-  
-  const start = new Date(match.startTime);
-  const isLocked = new Date() > start;
-  const isFinished = match.status === 'FINISHED';
+const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, refresh: () => void }> = ({ match, user, isAdmin, refresh }) => {
+   const [expanded, setExpanded] = useState(false);
+   
+   // User Bet State
+   const [answers, setAnswers] = useState<any>({});
+   const [hasBet, setHasBet] = useState(false);
+   const [isEditing, setIsEditing] = useState(false);
+   const [points, setPoints] = useState<number | null>(null);
 
-  useEffect(() => {
-    const bets = getBetsForMatch(match.id);
-    const myBet = bets.find(b => b.userId === currentUser.id);
-    setHasBet(!!myBet);
+   // Admin State
+   const [adminMode, setAdminMode] = useState(false);
+   const [resultAnswers, setResultAnswers] = useState<any>({});
 
-    if (isFinished && myBet) {
-       const result = getResult(match.id);
-       if (result) {
-         let pts = 0;
-         match.questions.forEach(q => {
-             if (String(myBet.answers[q.id]) === String(result.answers[q.id])) {
-                 pts += q.points;
+   const start = new Date(match.startTime);
+   const isLocked = new Date() > start;
+   const isFinished = match.status === 'FINISHED';
+   
+   // Init (Async)
+   useEffect(() => {
+      const init = async () => {
+          // 1. Load Bets
+          const bets = await db.fetchBetsForMatch(match.id);
+          const myBet = bets.find(b => b.userId === user.id);
+          if (myBet) { 
+              setHasBet(true); 
+              setAnswers(myBet.answers); 
+              setIsEditing(false); // Default to viewing if bet exists
+          } else { 
+              setHasBet(false); 
+              setAnswers({}); 
+              setIsEditing(true); // Default to editing if no bet
+          }
+          
+          // 2. Load Results for Admin / Points Calc
+          const results = await db.fetchResults();
+          const result = results.find(r => r.matchId === match.id);
+          
+          if (result) {
+             setResultAnswers(result.answers); // Pre-fill admin form
+             
+             // Calculate points if bet exists and finished
+             if (myBet) {
+                let p = 0;
+                match.questions.forEach(q => { if (String(myBet.answers[q.id]) === String(result.answers[q.id])) p += q.points; });
+                setPoints(p);
              }
-         });
-         setUserPoints(pts);
-       }
-    }
-  }, [match, currentUser.id, isFinished]);
-
-  return (
-    <div className={`group relative overflow-hidden rounded-xl transition-all duration-300 ${isFinished ? 'bg-slate-900/50 border border-slate-800 opacity-80' : 'bg-sport-card border border-slate-700 shadow-card hover:border-slate-600'}`}>
-        
-        {/* Accent Bar */}
-        <div className={`absolute top-0 left-0 w-1 h-full ${isFinished ? 'bg-slate-600' : isLocked ? 'bg-sport-accent' : 'bg-sport-primary'}`}></div>
-
-        <div className="p-5 pl-7">
-            {/* Header */}
-            <div className="flex justify-between items-start mb-6">
-                <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-sport-muted uppercase tracking-wider mb-1">
-                        {start.toLocaleDateString('hu-HU', { weekday: 'long' })}
-                    </span>
-                    <span className="text-sm font-bold text-white">
-                         {start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </span>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                    <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full tracking-wide ${
-                        isFinished ? 'bg-slate-800 text-slate-400' : 
-                        isLocked ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' : 
-                        'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                    }`}>
-                        {isFinished ? 'Véget ért' : isLocked ? 'Élő / Lezárt' : 'Tippelhető'}
-                    </span>
-                    {isAdmin && (
-                        <button onClick={onDelete} className="text-slate-600 hover:text-red-400 transition-colors">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Matchup */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex-1">
-                    <div className="text-lg font-bold text-white">{match.player1}</div>
-                </div>
-                <div className="px-4 text-slate-600 font-bold text-sm">VS</div>
-                <div className="flex-1 text-right">
-                    <div className="text-lg font-bold text-white">{match.player2}</div>
-                </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-between items-center pt-4 border-t border-slate-700/50">
-                 <div>
-                    {isFinished && userPoints !== null ? (
-                        <span className="text-sport-secondary font-bold text-lg flex items-center gap-1">
-                            +{userPoints} Pont
-                        </span>
-                    ) : (
-                        <span className="text-xs text-slate-500">{match.questions.length} kérdés</span>
-                    )}
-                 </div>
-
-                <div className="flex items-center gap-2">
-                    {!isFinished && !isLocked && (
-                        <Button 
-                            variant={hasBet ? "outline" : "primary"} 
-                            size="sm"
-                            onClick={onOpenBet}
-                        >
-                            {hasBet ? 'Tipp Módosítása' : 'Tipp Leadása'}
-                        </Button>
-                    )}
-
-                    {isAdmin && !isFinished && (
-                        <Button variant="secondary" size="sm" onClick={onOpenResult}>
-                            Eredmény
-                        </Button>
-                    )}
-                </div>
-            </div>
-        </div>
-    </div>
-  );
-};
-
-// --- Modals ---
-
-const BettingModal: React.FC<{ match: Match; userId: string; onClose: () => void; onSave: () => void }> = ({ match, userId, onClose, onSave }) => {
-  const [answers, setAnswers] = useState<Record<string, any>>({});
-
-  useEffect(() => {
-    const bets = getBetsForMatch(match.id);
-    const myBet = bets.find(b => b.userId === userId);
-    if (myBet) setAnswers(myBet.answers);
-  }, [match, userId]);
-
-  const handleChange = (qId: string, val: any) => {
-    setAnswers(prev => ({ ...prev, [qId]: val }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveBet({
-        userId,
-        matchId: match.id,
-        answers,
-        timestamp: new Date().toISOString()
-    });
-    onSave();
-  };
-
-  const inputClass = "w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-sport-primary focus:border-transparent outline-none transition-all";
-
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-sport-card w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-slate-700">
-            <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-white">Tipp Leadása</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
-                </div>
-                
-                <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700 flex justify-center items-center gap-4">
-                     <span className="font-bold text-white">{match.player1}</span>
-                     <span className="text-slate-500 text-xs">vs</span>
-                     <span className="font-bold text-white">{match.player2}</span>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {match.questions.map(q => (
-                        <div key={q.id}>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">
-                                {q.label} <span className="text-sport-primary text-xs ml-1">({q.points} pont)</span>
-                            </label>
-                            
-                            {q.type === QuestionType.WINNER && (
-                                <div className="grid grid-cols-2 gap-3">
-                                    {[match.player1, match.player2].map(p => (
-                                        <div 
-                                            key={p}
-                                            onClick={() => handleChange(q.id, p)}
-                                            className={`cursor-pointer text-center py-3 px-2 rounded-lg border transition-all ${
-                                                answers[q.id] === p 
-                                                ? 'bg-sport-primary border-sport-primary text-white shadow-lg' 
-                                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white'
-                                            }`}
-                                        >
-                                            <div className="text-sm font-bold truncate">{p}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {q.type === QuestionType.EXACT_SCORE && (
-                                <input 
-                                    type="text" 
-                                    placeholder="Pl. 3-1"
-                                    className={inputClass}
-                                    value={answers[q.id] || ''}
-                                    onChange={(e) => handleChange(q.id, e.target.value)}
-                                    required
-                                />
-                            )}
-
-                            {q.type === QuestionType.OVER_UNDER && (
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button type="button" onClick={() => handleChange(q.id, 'OVER')} className={`py-3 rounded-lg font-medium text-sm transition-all ${answers[q.id] === 'OVER' ? 'bg-sport-accent text-white' : 'bg-slate-800 text-slate-400'}`}>
-                                        Felett
-                                    </button>
-                                    <button type="button" onClick={() => handleChange(q.id, 'UNDER')} className={`py-3 rounded-lg font-medium text-sm transition-all ${answers[q.id] === 'UNDER' ? 'bg-sport-accent text-white' : 'bg-slate-800 text-slate-400'}`}>
-                                        Alatt
-                                    </button>
-                                </div>
-                            )}
-
-                            {q.type === QuestionType.CHOICE && q.options && (
-                                <select 
-                                    className={inputClass}
-                                    value={answers[q.id] || ''}
-                                    onChange={(e) => handleChange(q.id, e.target.value)}
-                                    required
-                                >
-                                    <option value="" disabled>Válassz...</option>
-                                    {q.options.map(opt => (
-                                        <option key={opt} value={opt}>{opt}</option>
-                                    ))}
-                                </select>
-                            )}
-                        </div>
-                    ))}
-                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-                        <Button type="button" variant="ghost" onClick={onClose}>Mégse</Button>
-                        <Button type="submit" variant="primary">Mentés</Button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-  );
-};
-
-const ResultModal: React.FC<{ match: Match; onClose: () => void; onSave: () => void }> = ({ match, onClose, onSave }) => {
-    const [answers, setAnswers] = useState<Record<string, any>>({});
-  
-    const handleChange = (qId: string, val: any) => {
-      setAnswers(prev => ({ ...prev, [qId]: val }));
-    };
-  
-    const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      if(confirm('Biztosan rögzíted? Ez lezárja a meccset.')) {
-        saveResult({
-            matchId: match.id,
-            answers
-        });
-        onSave();
+          }
       }
-    };
+      init();
+   }, [match, user, isFinished, expanded]);
 
-    const inputClass = "w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-sport-secondary outline-none";
-  
-    return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-sport-card w-full max-w-lg rounded-2xl shadow-2xl border-2 border-slate-700">
-              <div className="p-6">
-                  <h3 className="text-lg font-bold mb-6 text-white border-b border-slate-700 pb-4">
-                      Eredmény Rögzítése
-                  </h3>
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                      {match.questions.map(q => (
-                          <div key={q.id}>
-                              <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wide">{q.label}</label>
-                              {q.type === QuestionType.WINNER && (
-                                  <select className={inputClass} value={answers[q.id] || ''} onChange={e => handleChange(q.id, e.target.value)} required>
-                                      <option value="">Győztes kiválasztása...</option>
-                                      <option value={match.player1}>{match.player1}</option>
-                                      <option value={match.player2}>{match.player2}</option>
-                                  </select>
-                              )}
-                              {q.type === QuestionType.EXACT_SCORE && (
-                                  <input type="text" placeholder="Pl. 3-1" className={inputClass} value={answers[q.id] || ''} onChange={(e) => handleChange(q.id, e.target.value)} required />
-                              )}
-                              {q.type === QuestionType.OVER_UNDER && (
-                                  <select className={inputClass} value={answers[q.id] || ''} onChange={e => handleChange(q.id, e.target.value)} required>
-                                      <option value="">Válassz...</option>
-                                      <option value="OVER">Felett</option>
-                                      <option value="UNDER">Alatt</option>
-                                  </select>
-                              )}
-                              {q.type === QuestionType.CHOICE && q.options && (
-                                  <select className={inputClass} value={answers[q.id] || ''} onChange={(e) => handleChange(q.id, e.target.value)} required>
-                                      <option value="">Válassz...</option>
-                                      {q.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                  </select>
-                              )}
-                          </div>
-                      ))}
-                      <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-                          <Button type="button" variant="ghost" onClick={onClose}>Mégse</Button>
-                          <Button type="submit" variant="secondary">Rögzítés</Button>
-                      </div>
-                  </form>
-              </div>
-          </div>
+   const handleSave = async () => {
+      await db.saveBet({ userId: user.id, matchId: match.id, answers, timestamp: new Date().toISOString() });
+      setHasBet(true); 
+      setIsEditing(false); // Switch to view mode
+      setExpanded(false); // Collapse to confirm
+      refresh();
+   };
+
+   const handleResultSave = async () => {
+      if(confirm('Lezárod a meccset? Ez rögzíti az eredményt és frissíti a pontokat.')) {
+         await db.closeMatch({ matchId: match.id, answers: resultAnswers });
+         setAdminMode(false);
+         refresh();
+      }
+   };
+
+   const handleResultChange = (qId: string, val: any) => {
+       setResultAnswers((prev: any) => ({ ...prev, [qId]: val }));
+   };
+
+   const formatAnswer = (val: string) => {
+       if (val === 'OVER') return 'Felett';
+       if (val === 'UNDER') return 'Alatt';
+       return val;
+   }
+
+   return (
+      <div className={`relative bg-[#15202b] rounded-2xl border overflow-hidden shadow-lg transition-all ${expanded ? 'border-[#137fec]/50 ring-1 ring-[#137fec]/20' : 'border-[#233648] hover:border-[#137fec]/30'}`}>
+         
+         {/* Top Banner Status */}
+         <div className="flex items-center justify-between px-4 py-2 bg-black/20 text-xs font-bold border-b border-white/5">
+             <div className="flex items-center gap-2">
+                 {isLocked && !isFinished && <span className="flex items-center gap-1 text-red-500 animate-pulse"><span className="size-2 rounded-full bg-red-500"></span> ÉLŐ / LEZÁRT</span>}
+                 {!isLocked && !isFinished && <span className="text-[#92adc9]">{start.toLocaleDateString()} - {start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>}
+                 {isFinished && <span className="text-slate-400">VÉGET ÉRT</span>}
+             </div>
+             {hasBet && !isFinished && (
+                 <div className="flex items-center gap-1 text-green-400 bg-green-400/10 px-2 py-0.5 rounded uppercase tracking-wider">
+                     <Icon name="confirmation_number" className="text-xs"/> Tipp Leadva
+                 </div>
+             )}
+         </div>
+
+         {/* Main Card Content */}
+         <div className="p-5 flex flex-col cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setExpanded(!expanded)}>
+             <div className="flex justify-between items-center mb-4">
+                 <div className="text-xl md:text-2xl font-black text-white">{match.player1}</div>
+                 <div className="text-xs font-black text-[#92adc9] bg-[#1a2632] px-2 py-1 rounded-full border border-[#233648]">VS</div>
+                 <div className="text-xl md:text-2xl font-black text-white text-right">{match.player2}</div>
+             </div>
+             
+             <div className="flex justify-between items-end">
+                 <div className="flex flex-col gap-1">
+                     <span className="text-xs text-[#92adc9] font-bold uppercase">{match.questions.length} fogadási piac</span>
+                     {points !== null && <span className="text-[#137fec] font-black text-lg bg-[#137fec]/10 px-2 py-0.5 rounded w-fit">+{points} PONT</span>}
+                 </div>
+                 <button className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${expanded ? 'bg-[#1a2632] text-white' : 'bg-[#137fec] text-white shadow-lg shadow-[#137fec]/20'}`}>
+                     {expanded ? 'Bezárás' : (hasBet ? 'Tipp Mutatása' : 'Tippelés')} <Icon name={expanded ? "expand_less" : "chevron_right"} className="text-base"/>
+                 </button>
+             </div>
+         </div>
+
+         {/* Expandable Betting/Admin Area */}
+         {expanded && (
+            <div className="p-6 bg-[#1a2632] border-t border-[#233648] animate-in slide-in-from-top-2 duration-200">
+               
+               {/* ADMIN TABS */}
+               {isAdmin && (
+                   <div className="flex p-1 bg-black/20 rounded-xl mb-6">
+                       <button onClick={() => setAdminMode(false)} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${!adminMode ? 'bg-[#1a2632] text-white shadow-lg' : 'text-[#92adc9] hover:text-white'}`}>Játékos Nézet (Tippelés)</button>
+                       <button onClick={() => setAdminMode(true)} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${adminMode ? 'bg-[#137fec] text-white shadow-lg' : 'text-[#92adc9] hover:text-white'}`}> <Icon name="settings"/> Eredmény Kezelése</button>
+                   </div>
+               )}
+
+               {adminMode ? (
+                   /* ADMIN RESULT INTERFACE */
+                   <div className="bg-gradient-to-br from-black/20 to-red-900/10 border border-white/5 rounded-xl p-6 relative">
+                        <div className="absolute top-0 right-0 p-3 opacity-5"><Icon name="gavel" className="text-8xl text-red-500"/></div>
+                        <h4 className="text-white font-bold mb-4 flex items-center gap-2 relative z-10">
+                            <Icon name="sports_score" className="text-[#137fec]"/> Hivatalos Végeredmény Rögzítése
+                        </h4>
+                        <p className="text-sm text-[#92adc9] mb-6 relative z-10">
+                            Figyelem: Az eredmény mentése lezárja a mérkőzést, és a rendszer kiszámolja a pontokat. Ezt követően már nem lehet tippelni.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+                           {match.questions.map(q => (
+                              <div key={q.id} className="space-y-2">
+                                 <label className="text-xs font-bold text-[#92adc9] uppercase flex justify-between">
+                                     {q.label}
+                                 </label>
+                                 {(q.type === QuestionType.WINNER || q.type === QuestionType.CHOICE) && (
+                                    <div className="flex gap-2">
+                                       {(q.options || [match.player1, match.player2]).map(p => (
+                                          <button key={p} onClick={() => handleResultChange(q.id, p)} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${resultAnswers[q.id] === p ? 'bg-[#137fec] border-[#137fec] text-white' : 'bg-[#233648] border-[#233648] text-[#92adc9]'}`}>{p}</button>
+                                       ))}
+                                    </div>
+                                 )}
+                                 {q.type === QuestionType.EXACT_SCORE && (
+                                    <input className="w-full bg-[#233648] border border-[#233648] rounded-xl p-3 text-white text-center font-bold text-lg tracking-widest focus:border-[#137fec] outline-none" placeholder="3-1" value={resultAnswers[q.id] || ''} onChange={e => handleResultChange(q.id, e.target.value)} />
+                                 )}
+                                 {q.type === QuestionType.OVER_UNDER && (
+                                    <div className="flex gap-2">
+                                         <button onClick={() => handleResultChange(q.id, 'OVER')} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${resultAnswers[q.id] === 'OVER' ? 'bg-[#101922] border-[#137fec] text-[#137fec]' : 'bg-[#233648] border-[#233648] text-[#92adc9]'}`}>FELETT</button>
+                                         <button onClick={() => handleResultChange(q.id, 'UNDER')} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${resultAnswers[q.id] === 'UNDER' ? 'bg-[#101922] border-[#137fec] text-[#137fec]' : 'bg-[#233648] border-[#233648] text-[#92adc9]'}`}>ALATT</button>
+                                    </div>
+                                 )}
+                              </div>
+                           ))}
+                           <button onClick={handleResultSave} className="md:col-span-2 bg-white text-black hover:bg-gray-200 py-3 rounded-xl font-bold mt-2 shadow-lg transition-all">Lezárás és Eredmény Mentése</button>
+                        </div>
+                   </div>
+               ) : (
+                   /* USER BETTING INTERFACE */
+                   <>
+                       {hasBet && !isEditing && !isFinished ? (
+                           <div className="bg-[#101922] border border-[#137fec]/30 rounded-xl p-6 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-2 opacity-10"><Icon name="receipt_long" className="text-9xl text-[#137fec]"/></div>
+                                <div className="relative z-10">
+                                    <h4 className="text-[#137fec] font-bold uppercase tracking-wider text-xs mb-4 flex items-center gap-2"><Icon name="verified"/> Aktív Szelvény</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
+                                        {match.questions.map(q => (
+                                            <div key={q.id} className="flex justify-between items-center border-b border-[#233648] pb-2 last:border-0">
+                                                <span className="text-[#92adc9] text-sm">{q.label}</span>
+                                                <span className="font-bold text-white">{formatAnswer(answers[q.id])}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {!isLocked && (
+                                        <div className="mt-6 flex justify-end">
+                                            <button onClick={() => setIsEditing(true)} className="text-[#92adc9] text-sm hover:text-white underline decoration-dotted">Tipp módosítása</button>
+                                        </div>
+                                    )}
+                                </div>
+                           </div>
+                       ) : (
+                       !isLocked && !isFinished ? (
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {match.questions.map(q => (
+                                 <div key={q.id} className="space-y-2">
+                                    <label className="text-xs font-bold text-[#92adc9] uppercase flex justify-between">
+                                        {q.label} <span>{q.points} pont</span>
+                                    </label>
+                                    {(q.type === QuestionType.WINNER || q.type === QuestionType.CHOICE) && (
+                                       <div className="flex gap-2">
+                                          {(q.options || [match.player1, match.player2]).map(p => (
+                                             <button key={p} onClick={() => setAnswers({...answers, [q.id]: p})} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${answers[q.id] === p ? 'bg-[#137fec] border-[#137fec] text-white shadow-lg shadow-[#137fec]/20' : 'bg-[#233648] border-[#233648] text-[#92adc9] hover:bg-[#233648]'}`}>{p}</button>
+                                          ))}
+                                       </div>
+                                    )}
+                                    {q.type === QuestionType.EXACT_SCORE && (
+                                       <input className="w-full bg-[#233648] border border-[#233648] rounded-xl p-3 text-white text-center font-bold text-lg tracking-widest focus:border-[#137fec] focus:outline-none transition-colors" placeholder="3-1" value={answers[q.id] || ''} onChange={e => setAnswers({...answers, [q.id]: e.target.value})} />
+                                    )}
+                                    {q.type === QuestionType.OVER_UNDER && (
+                                       <div className="flex gap-2">
+                                            <button onClick={() => setAnswers({...answers, [q.id]: 'OVER'})} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${answers[q.id] === 'OVER' ? 'bg-[#101922] border-[#137fec] text-[#137fec]' : 'bg-[#233648] border-[#233648] text-[#92adc9] hover:bg-[#233648]'}`}>FELETT</button>
+                                            <button onClick={() => setAnswers({...answers, [q.id]: 'UNDER'})} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${answers[q.id] === 'UNDER' ? 'bg-[#101922] border-[#137fec] text-[#137fec]' : 'bg-[#233648] border-[#233648] text-[#92adc9] hover:bg-[#233648]'}`}>ALATT</button>
+                                       </div>
+                                    )}
+                                 </div>
+                              ))}
+                              <div className="md:col-span-2 flex gap-3 mt-2">
+                                  {hasBet && <button onClick={() => setIsEditing(false)} className="flex-1 bg-[#1a2632] border border-[#233648] text-white py-3 rounded-xl font-bold hover:bg-[#233648]">Mégse</button>}
+                                  <button onClick={handleSave} className="flex-[2] bg-[#137fec] hover:bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-[#137fec]/25 transition-all">Tipp Mentése</button>
+                              </div>
+                           </div>
+                       ) : (
+                           <div className="text-center py-4">
+                               <p className="text-[#92adc9] mb-4 font-medium">A tippelés lezárult erre a mérkőzésre.</p>
+                               {hasBet && (
+                                   <div className="bg-[#101922] border border-[#233648] rounded-xl p-4 max-w-lg mx-auto mb-6 text-left">
+                                        <h4 className="text-[#92adc9] font-bold uppercase tracking-wider text-xs mb-3 border-b border-[#233648] pb-2">A te tipped:</h4>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {match.questions.map(q => (
+                                                <div key={q.id} className="flex justify-between">
+                                                    <span className="text-[#92adc9] text-xs truncate pr-2">{q.label}:</span>
+                                                    <span className="font-bold text-white text-xs">{formatAnswer(answers[q.id])}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                   </div>
+                               )}
+                           </div>
+                       ))}
+                   </>
+               )}
+            </div>
+         )}
       </div>
-    );
-  };
+   );
+};
