@@ -170,65 +170,86 @@ function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Cha
                 )}
             </div>
         ) : (
-            <div className="space-y-6">
+            <div className="space-y-8 max-w-4xl mx-auto">
                 {/* Podium */}
-                {globalRank.length >= 3 && (
-                    <div className="flex items-end justify-center gap-4 mb-10 min-h-[220px]">
+                {globalRank.length > 0 && (
+                    <div className="flex items-end justify-center gap-4 mb-12 min-h-[260px] pt-8">
                         {/* 2nd Place */}
-                        <div className="flex flex-col items-center w-1/3 max-w-[140px]">
-                            <div className="mb-2 text-center">
-                                <div className="font-bold text-white truncate w-full">{globalRank[1].username}</div>
-                                <div className="text-sm text-text-muted font-bold">{globalRank[1].points} p</div>
+                        {globalRank[1] && (
+                            <div className="flex flex-col items-center w-1/3 max-w-[140px] relative z-10">
+                                <div className="mb-4 text-center flex flex-col items-center">
+                                    <div className="size-12 rounded-full bg-slate-700 border-2 border-slate-500 mb-2 flex items-center justify-center text-xl font-bold text-slate-300 shadow-lg">
+                                        {globalRank[1].username[0].toUpperCase()}
+                                    </div>
+                                    <div className="font-bold text-white truncate w-full text-sm mb-1">{globalRank[1].username}</div>
+                                    <div className="text-lg text-slate-300 font-black">{globalRank[1].points} p</div>
+                                </div>
+                                <div className="w-full h-32 bg-gradient-to-b from-slate-600 to-[#1a2632] border-t-4 border-slate-400 rounded-t-2xl flex items-start justify-center pt-2 shadow-2xl relative">
+                                    <div className="absolute -top-4 size-8 rounded-full bg-slate-300 flex items-center justify-center font-black text-slate-900 text-sm border-4 border-[#15202b] shadow-lg">2</div>
+                                    <Icon name="emoji_events" className="text-slate-400 text-5xl opacity-30 mt-6" />
+                                </div>
                             </div>
-                            <div className="w-full h-32 bg-surface-dark border-t-4 border-slate-400 rounded-t-xl flex items-start justify-center pt-2 shadow-lg relative">
-                                <div className="absolute -top-5 size-10 rounded-full bg-slate-400 flex items-center justify-center font-black text-[#15202b] text-xl border-4 border-[#15202b]">2</div>
-                                <Icon name="emoji_events" className="text-slate-600 text-6xl opacity-20 mt-4" />
-                            </div>
-                        </div>
+                        )}
+                        
                         {/* 1st Place */}
-                        <div className="flex flex-col items-center w-1/3 max-w-[160px] z-10">
-                             <div className="mb-2 text-center">
-                                <div className="font-bold text-yellow-400 text-lg truncate w-full">{globalRank[0].username}</div>
-                                <div className="text-sm text-yellow-200 font-bold">{globalRank[0].points} p</div>
+                        {globalRank[0] && (
+                            <div className="flex flex-col items-center w-1/3 max-w-[160px] relative z-20 -mx-2">
+                                {/* Glow Effect */}
+                                <div className="absolute top-10 left-1/2 -translate-x-1/2 w-32 h-32 bg-yellow-500/20 blur-[50px] rounded-full pointer-events-none"></div>
+                                
+                                <div className="mb-4 text-center flex flex-col items-center">
+                                    <div className="size-16 rounded-full bg-yellow-600 border-2 border-yellow-400 mb-2 flex items-center justify-center text-2xl font-bold text-yellow-100 shadow-xl ring-4 ring-yellow-500/20">
+                                        {globalRank[0].username[0].toUpperCase()}
+                                    </div>
+                                    <div className="font-bold text-yellow-100 truncate w-full text-base mb-1">{globalRank[0].username}</div>
+                                    <div className="text-2xl text-yellow-400 font-black">{globalRank[0].points} p</div>
+                                </div>
+                                <div className="w-full h-44 bg-gradient-to-b from-yellow-600 to-[#1a2632] border-t-4 border-yellow-400 rounded-t-2xl flex items-start justify-center pt-2 shadow-2xl shadow-yellow-900/50 relative">
+                                    <div className="absolute -top-5 size-10 rounded-full bg-yellow-400 flex items-center justify-center font-black text-yellow-900 text-xl border-4 border-[#15202b] shadow-lg">1</div>
+                                    <Icon name="emoji_events" className="text-yellow-300 text-6xl opacity-40 mt-8" />
+                                </div>
                             </div>
-                            <div className="w-full h-40 bg-gradient-to-b from-yellow-500/20 to-surface-dark border-t-4 border-yellow-400 rounded-t-xl flex items-start justify-center pt-2 shadow-xl shadow-yellow-500/10 relative">
-                                <div className="absolute -top-6 size-12 rounded-full bg-yellow-400 flex items-center justify-center font-black text-black text-2xl border-4 border-[#15202b] shadow-lg">1</div>
-                                <Icon name="emoji_events" className="text-yellow-500 text-7xl opacity-30 mt-4" />
-                            </div>
-                        </div>
+                        )}
+
                         {/* 3rd Place */}
-                        <div className="flex flex-col items-center w-1/3 max-w-[140px]">
-                             <div className="mb-2 text-center">
-                                <div className="font-bold text-white truncate w-full">{globalRank[2].username}</div>
-                                <div className="text-sm text-text-muted font-bold">{globalRank[2].points} p</div>
+                        {globalRank[2] && (
+                            <div className="flex flex-col items-center w-1/3 max-w-[140px] relative z-10">
+                                <div className="mb-4 text-center flex flex-col items-center">
+                                    <div className="size-12 rounded-full bg-amber-800 border-2 border-amber-600 mb-2 flex items-center justify-center text-xl font-bold text-amber-200 shadow-lg">
+                                        {globalRank[2].username[0].toUpperCase()}
+                                    </div>
+                                    <div className="font-bold text-white truncate w-full text-sm mb-1">{globalRank[2].username}</div>
+                                    <div className="text-lg text-amber-500 font-black">{globalRank[2].points} p</div>
+                                </div>
+                                <div className="w-full h-24 bg-gradient-to-b from-amber-800 to-[#1a2632] border-t-4 border-amber-600 rounded-t-2xl flex items-start justify-center pt-2 shadow-2xl relative">
+                                    <div className="absolute -top-4 size-8 rounded-full bg-amber-600 flex items-center justify-center font-black text-amber-100 text-sm border-4 border-[#15202b] shadow-lg">3</div>
+                                    <Icon name="emoji_events" className="text-amber-500 text-4xl opacity-30 mt-4" />
+                                </div>
                             </div>
-                            <div className="w-full h-24 bg-surface-dark border-t-4 border-amber-700 rounded-t-xl flex items-start justify-center pt-2 shadow-lg relative">
-                                <div className="absolute -top-5 size-10 rounded-full bg-amber-700 flex items-center justify-center font-black text-white text-xl border-4 border-[#15202b]">3</div>
-                                <Icon name="emoji_events" className="text-amber-800 text-5xl opacity-20 mt-4" />
-                            </div>
-                        </div>
+                        )}
                     </div>
                 )}
 
-                {/* List */}
-                <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden">
-                    <table className="w-full text-left">
-                        <thead className="bg-[#15202b] text-xs uppercase text-text-muted font-bold border-b border-border-dark">
-                            <tr><th className="p-4 w-16 text-center">#</th><th className="p-4">Játékos</th><th className="p-4 text-right">Pont</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-border-dark">
-                            {globalRank.slice(3).map((r, i) => (
-                                <tr key={i} className="hover:bg-white/5 transition-colors">
-                                    <td className="p-4 text-center font-mono text-text-muted font-bold">{i+4}</td>
-                                    <td className="p-4 font-bold text-white">{r.username}</td>
-                                    <td className="p-4 text-right font-black text-primary">{r.points}</td>
-                                </tr>
-                            ))}
-                            {globalRank.length === 0 && (
-                                <tr><td colSpan={3} className="p-8 text-center text-text-muted">Nincs még adat.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
+                {/* List - Improved Visibility */}
+                <div className="flex flex-col gap-2">
+                    {globalRank.slice(3).map((r, i) => (
+                        <div key={i} className="flex items-center justify-between p-4 bg-surface-dark border border-border-dark rounded-xl hover:border-primary/30 transition-all hover:bg-[#1a2632] group">
+                            <div className="flex items-center gap-4">
+                                <div className="size-8 rounded-lg bg-[#0f151b] border border-border-dark flex items-center justify-center font-mono font-bold text-white group-hover:text-primary transition-colors">
+                                    {i + 4}.
+                                </div>
+                                <div className="font-bold text-white text-lg">{r.username}</div>
+                            </div>
+                            <div className="text-right">
+                                <div className="font-black text-primary text-xl">{r.points} p</div>
+                            </div>
+                        </div>
+                    ))}
+                    {globalRank.length === 0 && (
+                        <div className="p-8 text-center text-text-muted bg-surface-dark rounded-xl border border-border-dark border-dashed">
+                            Nincs még adat a ranglistán.
+                        </div>
+                    )}
                 </div>
             </div>
         )}
