@@ -12,6 +12,7 @@ export default function App() {
   const [page, setPage] = useState<'AUTH' | 'DASHBOARD' | 'LEADERBOARD'>('AUTH');
   const [activeChamp, setActiveChamp] = useState<Championship | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const u = db.getSession();
@@ -23,6 +24,7 @@ export default function App() {
     db.logout();
     setUser(null);
     setPage('AUTH');
+    setMobileMenuOpen(false);
   };
   
   if (page === 'AUTH') return <AuthScreen onLogin={(u) => { setUser(u); setPage('DASHBOARD'); }} />;
@@ -30,31 +32,80 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background-dark text-white font-sans selection:bg-primary selection:text-white pb-20 md:pb-0">
       {/* Top Navigation */}
-      <nav className="sticky top-0 z-50 w-full border-b border-border-dark bg-[#111a22]/95 backdrop-blur-md px-4 md:px-10 py-3 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-4 cursor-pointer" onClick={() => { setPage('DASHBOARD'); setActiveChamp(null); }}>
-          <div className="size-10 flex items-center justify-center text-primary bg-primary/10 rounded-xl">
-            <Icon name="sports_esports" className="text-3xl" />
-          </div>
-          <h2 className="text-white text-xl font-bold leading-tight tracking-tight hidden md:block">
-            HaverTipp <span className="text-primary">2025</span>
-          </h2>
-        </div>
-        
-        <div className="hidden md:flex flex-1 justify-end items-center gap-8">
-           <div className="flex items-center gap-2 bg-surface-dark p-1 rounded-full border border-border-dark">
-              <button onClick={() => {setPage('DASHBOARD'); setActiveChamp(null);}} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'DASHBOARD' && !activeChamp ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Főoldal</button>
-              {activeChamp && <button onClick={() => setPage('LEADERBOARD')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'LEADERBOARD' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Ranglista</button>}
-           </div>
-           <div className="flex items-center gap-3 pl-6 border-l border-border-dark">
-              <div className="text-right">
-                 <p className="text-sm font-bold text-white">{user?.username}</p>
-                 <button onClick={handleLogout} className="text-xs text-text-muted hover:text-red-400 font-medium">Kilépés</button>
+      <nav className="sticky top-0 z-50 w-full border-b border-border-dark bg-[#111a22]/95 backdrop-blur-md px-4 md:px-10 py-3 shadow-lg relative">
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 cursor-pointer" onClick={() => { setPage('DASHBOARD'); setActiveChamp(null); setMobileMenuOpen(false); }}>
+              <div className="size-10 flex items-center justify-center text-primary bg-primary/10 rounded-xl">
+                <Icon name="sports_esports" className="text-3xl" />
               </div>
-              <div className="size-10 rounded-full bg-gradient-to-br from-primary to-blue-600 border-2 border-[#15202b] shadow-lg flex items-center justify-center text-lg font-bold text-white">
-                 {user?.username[0].toUpperCase()}
-              </div>
-           </div>
+              <h2 className="text-white text-xl font-bold leading-tight tracking-tight">
+                Tippbajnok
+              </h2>
+            </div>
+            
+            {/* Desktop Menu */}
+            <div className="hidden md:flex flex-1 justify-end items-center gap-8">
+               <div className="flex items-center gap-2 bg-surface-dark p-1 rounded-full border border-border-dark">
+                  <button onClick={() => {setPage('DASHBOARD'); setActiveChamp(null);}} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'DASHBOARD' && !activeChamp ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Főoldal</button>
+                  {activeChamp && <button onClick={() => setPage('LEADERBOARD')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'LEADERBOARD' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Ranglista</button>}
+               </div>
+               <div className="flex items-center gap-3 pl-6 border-l border-border-dark">
+                  <div className="text-right">
+                     <p className="text-sm font-bold text-white">{user?.username}</p>
+                     <button onClick={handleLogout} className="text-xs text-text-muted hover:text-red-400 font-medium">Kilépés</button>
+                  </div>
+                  <div className="size-10 rounded-full bg-gradient-to-br from-primary to-blue-600 border-2 border-[#15202b] shadow-lg flex items-center justify-center text-lg font-bold text-white">
+                     {user?.username[0].toUpperCase()}
+                  </div>
+               </div>
+            </div>
+
+            {/* Mobile Menu Toggle */}
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden text-white p-2 rounded-lg hover:bg-white/10 transition-colors">
+                <Icon name={mobileMenuOpen ? "close" : "menu"} className="text-3xl" />
+            </button>
         </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+            <div className="absolute top-full left-0 w-full bg-[#111a22] border-b border-border-dark shadow-2xl p-4 flex flex-col gap-4 md:hidden animate-in slide-in-from-top-2 duration-200">
+                {/* Mobile Navigation Links */}
+                <div className="flex flex-col gap-2">
+                    <button 
+                        onClick={() => {setPage('DASHBOARD'); setActiveChamp(null); setMobileMenuOpen(false);}} 
+                        className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 ${page === 'DASHBOARD' && !activeChamp ? 'bg-primary text-white' : 'bg-surface-dark text-text-muted'}`}
+                    >
+                        <Icon name="home" /> Főoldal
+                    </button>
+                    {activeChamp && (
+                        <button 
+                            onClick={() => {setPage('LEADERBOARD'); setMobileMenuOpen(false);}} 
+                            className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 ${page === 'LEADERBOARD' ? 'bg-primary text-white' : 'bg-surface-dark text-text-muted'}`}
+                        >
+                            <Icon name="leaderboard" /> Ranglista
+                        </button>
+                    )}
+                </div>
+
+                <div className="h-px bg-border-dark w-full"></div>
+
+                {/* Mobile User Profile */}
+                <div className="flex items-center justify-between bg-surface-dark p-3 rounded-xl border border-border-dark">
+                    <div className="flex items-center gap-3">
+                        <div className="size-10 rounded-full bg-gradient-to-br from-primary to-blue-600 border border-white/10 flex items-center justify-center text-lg font-bold text-white">
+                            {user?.username[0].toUpperCase()}
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-white">{user?.username}</p>
+                            <p className="text-xs text-text-muted">Bejelentkezve</p>
+                        </div>
+                    </div>
+                    <button onClick={handleLogout} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg transition-colors">
+                        <Icon name="logout" />
+                    </button>
+                </div>
+            </div>
+        )}
       </nav>
 
       {/* Main Content */}
@@ -677,7 +728,7 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
              <div className="inline-flex p-4 rounded-2xl bg-[#111a22] text-primary mb-6 border border-border-dark shadow-lg shadow-primary/10">
                 <Icon name="sports_esports" className="text-4xl" />
              </div>
-             <h1 className="text-3xl font-black text-white mb-2 tracking-tight">HaverTipp <span className="text-primary">2025</span></h1>
+             <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Tippbajnok</h1>
              <p className="text-text-muted mb-8 text-sm">A legjobb hely a baráti fogadásokhoz.</p>
              
              <div className="space-y-4 text-left">
