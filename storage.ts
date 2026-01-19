@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { User, Championship, Match, Bet, MatchResult } from './types';
+import { User, Championship, Match, Bet, MatchResult, ChatMessage } from './types';
 
 // A megadott adatok alapján beállítva - így nem kérdezi a rendszer indításkor
 const SUPABASE_URL = 'https://eygkkjaktjongxzrzknv.supabase.co';
@@ -204,4 +204,46 @@ export const getGlobalStats = async () => {
   });
 
   return Object.values(stats).sort((a,b) => b.points - a.points);
+};
+
+// --- Chat ---
+
+export const getChatMessages = async (champId: string): Promise<ChatMessage[]> => {
+    const { data, error } = await supabase.from('chat_messages')
+        .select(`
+            id, 
+            championship_id, 
+            user_id, 
+            text, 
+            timestamp, 
+            users ( username )
+        `)
+        .eq('championship_id', champId)
+        .order('timestamp', { ascending: true })
+        .limit(50);
+
+    if (error) {
+        // Fallback if table doesn't exist yet in the user's supabase project
+        console.error("Chat error (table missing?):", error);
+        return [];
+    }
+
+    return data.map((d: any) => ({
+        id: d.id,
+        championshipId: d.championship_id,
+        userId: d.user_id,
+        username: d.users?.username || 'Ismeretlen',
+        text: d.text,
+        timestamp: d.timestamp
+    }));
+};
+
+export const sendChatMessage = async (champId: string, userId: string, text: string) => {
+    const { error } = await supabase.from('chat_messages').insert({
+        championship_id: champId,
+        user_id: userId,
+        text,
+        timestamp: new Date().toISOString()
+    });
+    if (error) throw error;
 };

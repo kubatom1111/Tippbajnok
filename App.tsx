@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { User, Championship, Match, QuestionType } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Championship, Match, QuestionType, ChatMessage } from './types';
 import * as db from './storage';
 
 // --- Icons (Material Symbols wrapper) ---
@@ -9,7 +9,7 @@ const Icon = ({ name, className = "" }: { name: string, className?: string }) =>
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [page, setPage] = useState<'AUTH' | 'DASHBOARD' | 'LEADERBOARD'>('AUTH');
+  const [page, setPage] = useState<'AUTH' | 'DASHBOARD' | 'LEADERBOARD' | 'CHAT'>('AUTH');
   const [activeChamp, setActiveChamp] = useState<Championship | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -47,7 +47,13 @@ export default function App() {
             <div className="hidden md:flex flex-1 justify-end items-center gap-8">
                <div className="flex items-center gap-2 bg-surface-dark p-1 rounded-full border border-border-dark">
                   <button onClick={() => {setPage('DASHBOARD'); setActiveChamp(null);}} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'DASHBOARD' && !activeChamp ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Főoldal</button>
-                  {activeChamp && <button onClick={() => setPage('LEADERBOARD')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'LEADERBOARD' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Ranglista</button>}
+                  {activeChamp && (
+                      <>
+                        <button onClick={() => setPage('DASHBOARD')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'DASHBOARD' && activeChamp ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Meccsek</button>
+                        <button onClick={() => setPage('LEADERBOARD')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'LEADERBOARD' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Ranglista</button>
+                        <button onClick={() => setPage('CHAT')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${page === 'CHAT' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Csevegés</button>
+                      </>
+                  )}
                </div>
                <div className="flex items-center gap-3 pl-6 border-l border-border-dark">
                   <div className="text-right">
@@ -78,12 +84,26 @@ export default function App() {
                         <Icon name="home" /> Főoldal
                     </button>
                     {activeChamp && (
-                        <button 
-                            onClick={() => {setPage('LEADERBOARD'); setMobileMenuOpen(false);}} 
-                            className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 ${page === 'LEADERBOARD' ? 'bg-primary text-white' : 'bg-surface-dark text-text-muted'}`}
-                        >
-                            <Icon name="leaderboard" /> Ranglista
-                        </button>
+                        <>
+                            <button 
+                                onClick={() => {setPage('DASHBOARD'); setMobileMenuOpen(false);}} 
+                                className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 ${page === 'DASHBOARD' && activeChamp ? 'bg-primary text-white' : 'bg-surface-dark text-text-muted'}`}
+                            >
+                                <Icon name="sports_soccer" /> Meccsek
+                            </button>
+                            <button 
+                                onClick={() => {setPage('LEADERBOARD'); setMobileMenuOpen(false);}} 
+                                className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 ${page === 'LEADERBOARD' ? 'bg-primary text-white' : 'bg-surface-dark text-text-muted'}`}
+                            >
+                                <Icon name="leaderboard" /> Ranglista
+                            </button>
+                            <button 
+                                onClick={() => {setPage('CHAT'); setMobileMenuOpen(false);}} 
+                                className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 ${page === 'CHAT' ? 'bg-primary text-white' : 'bg-surface-dark text-text-muted'}`}
+                            >
+                                <Icon name="chat" /> Csevegés
+                            </button>
+                        </>
                     )}
                 </div>
 
@@ -117,8 +137,10 @@ export default function App() {
                <div className="lg:col-span-8 flex flex-col gap-6">
                   {page === 'DASHBOARD' ? (
                      <ChampionshipFeed user={user!} champ={activeChamp} triggerRefresh={refresh} />
-                  ) : (
+                  ) : page === 'LEADERBOARD' ? (
                      <LeaderboardPage champ={activeChamp} />
+                  ) : (
+                     <ChatPage user={user!} champ={activeChamp} />
                   )}
                </div>
 
@@ -135,6 +157,116 @@ export default function App() {
 }
 
 // --- Screens & Components ---
+
+function ChatPage({ user, champ }: { user: User, champ: Championship }) {
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [text, setText] = useState('');
+    const [sending, setSending] = useState(false);
+    const endRef = useRef<HTMLDivElement>(null);
+
+    const loadMessages = async () => {
+        const msgs = await db.getChatMessages(champ.id);
+        setMessages(msgs);
+    };
+
+    useEffect(() => {
+        loadMessages();
+        const interval = setInterval(loadMessages, 3000); // Polling for updates
+        return () => clearInterval(interval);
+    }, [champ.id]);
+
+    useEffect(() => {
+        endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+    const handleSend = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!text.trim()) return;
+        setSending(true);
+        try {
+            await db.sendChatMessage(champ.id, user.id, text.trim());
+            setText('');
+            await loadMessages();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden flex flex-col h-[calc(100vh-140px)] md:h-[600px] relative shadow-2xl">
+            {/* Header */}
+            <div className="p-4 border-b border-border-dark bg-[#15202b] flex items-center gap-3 shrink-0">
+                <div className="size-10 bg-primary/20 rounded-full flex items-center justify-center text-primary">
+                    <Icon name="chat_bubble" className="text-xl"/>
+                </div>
+                <div>
+                    <h3 className="font-bold text-white">Bajnoki Csevegő</h3>
+                    <p className="text-xs text-text-muted">{champ.participants.length} résztvevő</p>
+                </div>
+            </div>
+
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#101922] scroll-smooth">
+                {messages.length === 0 && (
+                    <div className="text-center py-10 opacity-50">
+                        <Icon name="forum" className="text-5xl mb-2"/>
+                        <p className="text-sm">Még nincsenek üzenetek. Kezdd te!</p>
+                    </div>
+                )}
+                
+                {messages.map((msg) => {
+                    const isMe = msg.userId === user.id;
+                    const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    return (
+                        <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                            <div className={`size-8 rounded-full flex items-center justify-center text-xs font-bold border border-white/10 shrink-0 ${isMe ? 'bg-primary text-white' : 'bg-surface-dark text-text-muted'}`}>
+                                {msg.username[0].toUpperCase()}
+                            </div>
+                            <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                <div className="flex items-baseline gap-2 mb-1 px-1">
+                                    <span className="text-xs font-bold text-text-muted">{msg.username}</span>
+                                    <span className="text-[10px] text-white/30">{time}</span>
+                                </div>
+                                <div className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                                    isMe 
+                                    ? 'bg-primary text-white rounded-tr-none' 
+                                    : 'bg-surface-dark text-white border border-border-dark rounded-tl-none'
+                                }`}>
+                                    {msg.text}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+                <div ref={endRef} />
+            </div>
+
+            {/* Input Area */}
+            <div className="p-3 bg-[#15202b] border-t border-border-dark shrink-0">
+                <form onSubmit={handleSend} className="flex gap-2 relative">
+                    <input 
+                        value={text}
+                        onChange={e => setText(e.target.value)}
+                        placeholder="Írj valamit..." 
+                        className="w-full bg-input-dark border border-border-dark rounded-xl pl-4 pr-12 py-3.5 text-white focus:border-primary outline-none transition-all shadow-inner"
+                    />
+                    <button 
+                        type="submit"
+                        disabled={!text.trim() || sending}
+                        className={`absolute right-1 top-1 bottom-1 aspect-square rounded-lg flex items-center justify-center transition-all ${
+                            !text.trim() || sending ? 'bg-transparent text-slate-600' : 'bg-primary text-white hover:bg-blue-600 shadow-md'
+                        }`}
+                    >
+                        <Icon name={sending ? "sync" : "send"} className={sending ? "animate-spin" : ""} />
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
 
 function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Championship) => void }) {
   const [champs, setChamps] = useState<Championship[]>([]);
