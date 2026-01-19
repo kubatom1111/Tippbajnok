@@ -158,10 +158,315 @@ export default function App() {
 
 // --- Screens & Components ---
 
+function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
+  const [isReg, setIsReg] = useState(false);
+  const [u, setU] = useState('');
+  const [p, setP] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const user = isReg ? await db.register(u, p) : await db.login(u, p);
+      onLogin(user);
+    } catch (err: any) {
+      setError(err.message || "Hiba történt");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#101922] p-4 relative overflow-hidden">
+        {/* Background blobs */}
+        <div className="absolute top-0 left-0 w-96 h-96 bg-primary/20 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2 pointer-events-none"></div>
+
+        <div className="w-full max-w-md bg-surface-dark p-8 rounded-3xl border border-border-dark shadow-2xl relative z-10 backdrop-blur-sm">
+            <div className="text-center mb-8">
+                <div className="size-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20 shadow-glow">
+                    <Icon name="sports_esports" className="text-4xl" />
+                </div>
+                <h1 className="text-3xl font-black text-white mb-2">Tippbajnok</h1>
+                <p className="text-text-muted">Jelentkezz be a folytatáshoz</p>
+            </div>
+
+            {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl mb-6 text-sm flex items-center gap-2"><Icon name="error" /> {error}</div>}
+
+            <form onSubmit={submit} className="space-y-4">
+                <div>
+                    <label className="text-xs font-bold text-text-muted uppercase ml-1 mb-1 block">Felhasználónév</label>
+                    <input autoFocus className="w-full bg-input-dark border border-border-dark rounded-xl p-3.5 text-white focus:border-primary outline-none transition-all focus:ring-2 focus:ring-primary/20" value={u} onChange={e => setU(e.target.value)} required />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-text-muted uppercase ml-1 mb-1 block">Jelszó</label>
+                    <input type="password" className="w-full bg-input-dark border border-border-dark rounded-xl p-3.5 text-white focus:border-primary outline-none transition-all focus:ring-2 focus:ring-primary/20" value={p} onChange={e => setP(e.target.value)} required />
+                </div>
+                <button disabled={loading} className="w-full bg-primary hover:bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2">
+                    {loading ? <Icon name="sync" className="animate-spin"/> : (isReg ? 'Regisztráció' : 'Belépés')}
+                </button>
+            </form>
+
+            <div className="mt-6 text-center">
+                <button onClick={() => setIsReg(!isReg)} className="text-text-muted hover:text-white text-sm font-medium transition-colors">
+                    {isReg ? 'Már van fiókod? Belépés' : 'Nincs még fiókod? Regisztráció'}
+                </button>
+            </div>
+        </div>
+    </div>
+  );
+}
+
+function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: Championship, triggerRefresh: number }) {
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const isAdmin = user.id === champ.adminId;
+
+  const load = async () => {
+      const ms = await db.getMatches(champ.id);
+      setMatches(ms);
+  };
+
+  useEffect(() => { load(); }, [champ, triggerRefresh, showCreate]);
+
+  return (
+    <div className="space-y-6">
+        <div className="flex justify-between items-center">
+             <h2 className="text-2xl font-black text-white flex items-center gap-2">
+                 <Icon name="calendar_month" className="text-primary"/> Mérkőzések
+             </h2>
+             {isAdmin && (
+                 <button onClick={() => setShowCreate(true)} className="bg-surface-dark hover:bg-primary hover:text-white text-text-muted border border-border-dark px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2">
+                     <Icon name="add" /> Új Meccs
+                 </button>
+             )}
+        </div>
+        
+        {matches.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed border-border-dark rounded-2xl">
+                <p className="text-text-muted">Nincsenek mérkőzések ebben a bajnokságban.</p>
+                {isAdmin && <button onClick={() => setShowCreate(true)} className="text-primary font-bold mt-2">Adj hozzá egyet!</button>}
+            </div>
+        ) : (
+            <div className="grid gap-6">
+                {matches.map(m => (
+                    <InlineMatchCard key={m.id} match={m} user={user} isAdmin={isAdmin} refresh={load} />
+                ))}
+            </div>
+        )}
+        {showCreate && <CreateMatchModal champId={champ.id} onClose={() => setShowCreate(false)} />}
+    </div>
+  )
+}
+
+function LeaderboardPage({ champ }: { champ: Championship }) {
+   const [entries, setEntries] = useState<any[]>([]);
+   
+   useEffect(() => {
+       const load = async () => {
+           const matches = await db.getMatches(champ.id);
+           const finished = matches.filter(m => m.status === 'FINISHED');
+           const results = await db.fetchResults();
+           const scores: Record<string, {name: string, points: number, correct: number}> = {};
+           
+           // Init participants
+           const allUsers = await db.getAllUsers();
+           champ.participants.forEach(uid => {
+               scores[uid] = { name: allUsers[uid] || 'Ismeretlen', points: 0, correct: 0 };
+           });
+
+           for(const m of finished) {
+               const res = results.find(r => r.matchId === m.id);
+               if(!res) continue;
+               
+               const mBets = await db.fetchBetsForMatch(m.id);
+               mBets.forEach(b => {
+                   if(scores[b.userId]) {
+                       let p = 0;
+                       m.questions.forEach(q => {
+                           if(String(b.answers[q.id]) === String(res.answers[q.id])) {
+                               p += q.points;
+                               scores[b.userId].correct++;
+                           }
+                       });
+                       scores[b.userId].points += p;
+                   }
+               });
+           }
+           
+           setEntries(Object.values(scores).sort((a,b) => b.points - a.points));
+       };
+       load();
+   }, [champ]);
+
+   return (
+      <div className="bg-surface-dark border border-border-dark rounded-2xl overflow-hidden shadow-2xl">
+          <div className="p-6 border-b border-border-dark bg-[#15202b]">
+              <h2 className="text-xl font-black text-white flex items-center gap-2">
+                  <Icon name="leaderboard" className="text-yellow-500"/> Ranglista
+              </h2>
+          </div>
+          <table className="w-full">
+              <thead className="bg-[#101922] text-xs font-bold text-text-muted uppercase">
+                  <tr>
+                      <th className="p-4 text-center w-16">#</th>
+                      <th className="p-4 text-left">Játékos</th>
+                      <th className="p-4 text-center">Találat</th>
+                      <th className="p-4 text-right">Pont</th>
+                  </tr>
+              </thead>
+              <tbody className="divide-y divide-border-dark">
+                  {entries.map((e, i) => (
+                      <tr key={i} className={`hover:bg-white/5 transition-colors ${i===0 ? 'bg-yellow-500/5' : ''}`}>
+                          <td className="p-4 text-center font-mono font-bold text-text-muted">
+                              {i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : i+1}
+                          </td>
+                          <td className="p-4 font-bold text-white">
+                              {e.name}
+                              {i===0 && <span className="ml-2 text-[10px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-black uppercase">Bajnok</span>}
+                          </td>
+                          <td className="p-4 text-center text-text-muted font-mono">{e.correct}</td>
+                          <td className="p-4 text-right font-black text-white text-lg">{e.points}</td>
+                      </tr>
+                  ))}
+                  {entries.length === 0 && (
+                      <tr><td colSpan={4} className="p-8 text-center text-text-muted">Nincs megjeleníthető adat.</td></tr>
+                  )}
+              </tbody>
+          </table>
+      </div>
+   );
+}
+
+function QuickLeaderboardWidget({ champ, triggerRefresh, setPage }: any) {
+    const [top3, setTop3] = useState<any[]>([]);
+    
+    useEffect(() => {
+        const load = async () => {
+             const matches = await db.getMatches(champ.id);
+             const finished = matches.filter(m => m.status === 'FINISHED');
+             const results = await db.fetchResults();
+             const scores: Record<string, number> = {};
+             
+             // Init
+             champ.participants.forEach((uid:string) => scores[uid] = 0);
+             const allUsers = await db.getAllUsers();
+             
+             for(const m of finished) {
+                 const res = results.find(r => r.matchId === m.id);
+                 if(!res) continue;
+                 const mBets = await db.fetchBetsForMatch(m.id);
+                 mBets.forEach(b => {
+                     if(scores[b.userId] !== undefined) {
+                         let p = 0;
+                         m.questions.forEach(q => { if(String(b.answers[q.id]) === String(res.answers[q.id])) p += q.points; });
+                         scores[b.userId] += p;
+                     }
+                 });
+             }
+             
+             const sorted = Object.entries(scores)
+                .map(([uid, pts]) => ({ name: allUsers[uid] || 'Ismeretlen', points: pts }))
+                .sort((a,b) => b.points - a.points)
+                .slice(0, 3);
+             
+             setTop3(sorted);
+        };
+        load();
+    }, [champ, triggerRefresh]);
+
+    return (
+        <div className="bg-surface-dark border border-border-dark rounded-2xl p-6 shadow-xl">
+            <h3 className="font-bold text-white mb-4 flex items-center justify-between">
+                <span>Top 3</span>
+                <button onClick={() => setPage('LEADERBOARD')} className="text-xs text-primary hover:underline">Teljes lista</button>
+            </h3>
+            <div className="space-y-3">
+                {top3.map((e, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[#15202b] border border-border-dark">
+                        <div className="flex items-center gap-3">
+                            <div className={`size-8 rounded-full flex items-center justify-center font-bold text-xs ${i===0 ? 'bg-yellow-500 text-black' : 'bg-surface-dark border border-border-dark text-text-muted'}`}>
+                                {i+1}
+                            </div>
+                            <span className="font-bold text-white text-sm">{e.name}</span>
+                        </div>
+                        <span className="font-black text-primary">{e.points}</span>
+                    </div>
+                ))}
+                {top3.length === 0 && <p className="text-xs text-text-muted text-center">Nincs adat.</p>}
+            </div>
+        </div>
+    );
+}
+
+function PromoWidget() {
+    return (
+        <div className="bg-gradient-to-br from-primary to-blue-700 rounded-2xl p-6 shadow-2xl relative overflow-hidden text-white">
+            <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-1/2 -translate-y-1/2"><Icon name="rocket_launch" className="text-9xl"/></div>
+            <h3 className="font-black text-xl mb-2 relative z-10">Prémium Funkciók?</h3>
+            <p className="text-blue-100 text-sm mb-4 relative z-10">Támogasd a fejlesztést és kapj egyedi jelvényeket a profilodra!</p>
+            <button onClick={() => alert('Hamarosan!')} className="bg-white text-primary px-4 py-2 rounded-lg font-bold text-sm shadow-lg relative z-10">Részletek</button>
+        </div>
+    );
+}
+
+function CreateChampModal({ userId, onClose }: { userId: string, onClose: () => void }) {
+    const [name, setName] = useState('');
+    const [code, setCode] = useState('');
+    const [mode, setMode] = useState<'CREATE' | 'JOIN'>('CREATE');
+
+    const handleCreate = async () => {
+        if(!name || !code) return;
+        try {
+            await db.createChamp(name, code, userId);
+            onClose();
+        } catch(e: any) { alert(e.message); }
+    };
+
+    const handleJoin = async () => {
+        if(!code) return;
+        try {
+            await db.joinChamp(code, userId);
+            onClose();
+        } catch(e: any) { alert(e.message); }
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="bg-surface-dark w-full max-w-md rounded-2xl p-6 border border-border-dark relative shadow-2xl">
+                 <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-white"><Icon name="close" /></button>
+                 
+                 <div className="flex p-1 bg-black/20 rounded-xl mb-6">
+                     <button onClick={() => setMode('CREATE')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${mode === 'CREATE' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Létrehozás</button>
+                     <button onClick={() => setMode('JOIN')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${mode === 'JOIN' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Csatlakozás</button>
+                 </div>
+
+                 {mode === 'CREATE' ? (
+                     <div className="space-y-4">
+                         <h3 className="text-xl font-black text-white">Új Bajnokság</h3>
+                         <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Bajnokság neve" value={name} onChange={e => setName(e.target.value)} />
+                         <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Egyedi Csatlakozási Kód" value={code} onChange={e => setCode(e.target.value)} />
+                         <button onClick={handleCreate} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold">Létrehozás</button>
+                     </div>
+                 ) : (
+                     <div className="space-y-4">
+                         <h3 className="text-xl font-black text-white">Csatlakozás</h3>
+                         <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Csatlakozási Kód" value={code} onChange={e => setCode(e.target.value)} />
+                         <button onClick={handleJoin} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold">Csatlakozás</button>
+                     </div>
+                 )}
+            </div>
+        </div>
+    );
+}
+
 function ChatPage({ user, champ }: { user: User, champ: Championship }) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [text, setText] = useState('');
     const [sending, setSending] = useState(false);
+    const [tableError, setTableError] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const loadMessages = async () => {
@@ -188,26 +493,31 @@ function ChatPage({ user, champ }: { user: User, champ: Championship }) {
         if (containerRef.current) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
-    }, [messages]);
+    }, [messages, tableError]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!text.trim()) return;
         setSending(true);
+        setTableError(false);
         try {
             await db.sendChatMessage(champ.id, user.id, text.trim());
             setText('');
             await loadMessages(); 
         } catch (err: any) {
-            console.error(err);
-            alert("Hiba: " + (err.message || "Nem sikerült elküldeni az üzenetet."));
+            console.error("Chat küldési hiba:", err);
+            if (err.message && (err.message.includes('Could not find the table') || err.message.includes('relation "public.chat_messages" does not exist'))) {
+                setTableError(true);
+            } else {
+                alert("Hiba: " + (err.message || "Nem sikerült elküldeni az üzenetet."));
+            }
         } finally {
             setSending(false);
         }
     };
 
     return (
-        <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden flex flex-col h-[calc(100dvh-180px)] md:h-[600px] relative shadow-2xl">
+        <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden flex flex-col h-[calc(100dvh-140px)] md:h-[600px] relative shadow-2xl">
             {/* Header */}
             <div className="p-4 border-b border-border-dark bg-[#15202b] flex items-center gap-3 shrink-0">
                 <div className="size-10 bg-primary/20 rounded-full flex items-center justify-center text-primary">
@@ -222,13 +532,30 @@ function ChatPage({ user, champ }: { user: User, champ: Championship }) {
             {/* Messages Area */}
             <div 
                 ref={containerRef}
-                className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#101922] scroll-smooth"
+                className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#101922] scroll-smooth min-h-0"
             >
-                {messages.length === 0 && (
+                {messages.length === 0 && !tableError && (
                     <div className="text-center py-10 opacity-50">
                         <Icon name="forum" className="text-5xl mb-2"/>
                         <p className="text-sm">Még nincsenek üzenetek. Kezdd te!</p>
                     </div>
+                )}
+
+                {tableError && (
+                     <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-center my-4 animate-in fade-in slide-in-from-bottom-2">
+                        <Icon name="database" className="text-3xl text-red-500 mb-2"/>
+                        <h4 className="text-red-400 font-bold text-sm mb-1">Adatbázis hiba: Hiányzó tábla</h4>
+                        <p className="text-xs text-white/70 mb-2">A chat funkcióhoz létre kell hozni a táblát a Supabase-en.</p>
+                        <code className="block bg-black/30 p-2 rounded text-[10px] text-left font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap select-all">
+                            create table chat_messages (
+                              id uuid default gen_random_uuid() primary key,
+                              championship_id uuid not null references championships(id),
+                              user_id uuid not null references users(id),
+                              text text not null,
+                              timestamp timestamptz default now()
+                            );
+                        </code>
+                     </div>
                 )}
                 
                 {messages.map((msg) => {
@@ -698,361 +1025,6 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
       </div>
    );
 };
-
-function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: Championship, triggerRefresh: number }) {
-   const [matches, setMatches] = useState<Match[]>([]);
-   const [showCreateMatch, setShowCreateMatch] = useState(false);
-   const [stats, setStats] = useState<{rank: number, points: number, totalPlayers: number, top3: any[]}>({rank: 0, points: 0, totalPlayers: 0, top3: []});
-   const isAdmin = champ.adminId === user.id;
-
-   useEffect(() => { 
-       const load = async () => {
-           setMatches(await db.getMatches(champ.id));
-           
-           // Calculate quick stats for header
-           const users = await db.getAllUsers();
-           const results = await db.fetchResults();
-           const matchesData = await db.getMatches(champ.id);
-           const scores: Record<string, any> = {};
-           
-           if(champ.participants) {
-               champ.participants.forEach(u => scores[u] = { id: u, name: users[u] || '?', points: 0 });
-           }
-           
-           for (const m of matchesData.filter(x => x.status === 'FINISHED')) {
-               const res = results.find(r => r.matchId === m.id);
-               if(!res) continue;
-               const bets = await db.fetchBetsForMatch(m.id);
-               bets.forEach(b => {
-                   if(scores[b.userId]) {
-                       m.questions.forEach(q => {
-                          if(String(b.answers[q.id]) === String(res.answers[q.id])) scores[b.userId].points += q.points;
-                       });
-                   }
-               });
-           }
-           
-           const sorted = Object.values(scores).sort((a,b) => b.points - a.points);
-           const myRankIndex = sorted.findIndex(x => x.id === user.id);
-           
-           setStats({
-               rank: myRankIndex + 1,
-               points: scores[user.id]?.points || 0,
-               totalPlayers: sorted.length,
-               top3: sorted.slice(0, 3)
-           });
-       }; 
-       load(); 
-    }, [champ, triggerRefresh, showCreateMatch, user]);
-
-   return (
-      <>
-         {/* Mobile Dashboard / Hero */}
-         <div className="mb-6 space-y-4">
-             <div className="flex items-center justify-between">
-                <div>
-                     <h1 className="text-3xl font-black text-white">{champ.name}</h1>
-                     <p className="text-text-muted text-sm flex items-center gap-1 mt-1"><Icon name="key" className="text-sm"/> Kód: <span className="text-white font-mono bg-surface-dark px-2 rounded border border-border-dark">{champ.joinCode}</span></p>
-                </div>
-                 {isAdmin && <button onClick={() => setShowCreateMatch(true)} className="bg-primary/10 hover:bg-primary/20 text-primary size-10 flex items-center justify-center rounded-xl font-bold border border-primary/20 transition-all"><Icon name="add" className="text-2xl"/></button>}
-             </div>
-             
-             {/* Personal Stats Card */}
-             <div className="bg-gradient-to-r from-blue-900 to-[#15202b] rounded-2xl p-5 border border-white/10 shadow-lg relative overflow-hidden">
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-[60px] -mr-10 -mt-10 pointer-events-none"></div>
-                 <div className="relative z-10 grid grid-cols-3 divide-x divide-white/10">
-                     <div className="text-center px-2">
-                         <div className="text-xs text-blue-200 uppercase font-bold mb-1">Helyezés</div>
-                         <div className="text-2xl font-black text-white">{stats.rank}. <span className="text-sm text-white/50 font-normal">/ {stats.totalPlayers}</span></div>
-                     </div>
-                     <div className="text-center px-2">
-                         <div className="text-xs text-blue-200 uppercase font-bold mb-1">Pontszám</div>
-                         <div className="text-2xl font-black text-primary">{stats.points}</div>
-                     </div>
-                     <div className="text-center px-2">
-                         <div className="text-xs text-blue-200 uppercase font-bold mb-1">Aktív Meccs</div>
-                         <div className="text-2xl font-black text-white">{matches.filter(m => m.status === 'SCHEDULED').length}</div>
-                     </div>
-                 </div>
-             </div>
-
-             {/* Mobile Top 3 Mini-Leaderboard */}
-             <div className="lg:hidden">
-                 <div className="text-xs font-bold text-text-muted uppercase mb-2 ml-1">Top 3 Játékos</div>
-                 <div className="grid grid-cols-3 gap-2">
-                     {stats.top3.map((p, i) => (
-                         <div key={p.id} className="bg-surface-dark border border-border-dark rounded-xl p-2 flex flex-col items-center text-center">
-                             <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${i===0?'bg-yellow-500 text-black':i===1?'bg-slate-400 text-black':'bg-amber-700 text-white'}`}>{i+1}</div>
-                             <div className="text-xs font-bold text-white truncate w-full">{p.name}</div>
-                             <div className="text-xs text-primary font-bold">{p.points}p</div>
-                         </div>
-                     ))}
-                     {stats.top3.length === 0 && <div className="col-span-3 text-center text-xs text-text-muted italic">Még nincs adat.</div>}
-                 </div>
-             </div>
-         </div>
-
-         <div className="flex flex-col gap-4">
-            {matches.map(m => <InlineMatchCard key={m.id} match={m} user={user} isAdmin={isAdmin} refresh={() => setMatches([...matches])} />)}
-            {matches.length === 0 && (
-                <div className="text-center py-16 bg-surface-dark rounded-2xl border border-border-dark border-dashed">
-                    <Icon name="sports_soccer" className="text-4xl text-text-muted opacity-50 mb-2"/>
-                    <p className="text-text-muted font-medium">Jelenleg nincsenek aktív meccsek.</p>
-                </div>
-            )}
-         </div>
-         {showCreateMatch && <CreateMatchModal champId={champ.id} onClose={() => setShowCreateMatch(false)} />}
-      </>
-   );
-}
-
-function LeaderboardPage({ champ }: { champ: Championship }) {
-    const [entries, setEntries] = useState<any[]>([]);
-    
-    useEffect(() => {
-        const load = async () => {
-            const matches = await db.getMatches(champ.id);
-            const users = await db.getAllUsers();
-            const results = await db.fetchResults();
-            const scores: Record<string, any> = {};
-            
-            // Init scores
-            if(champ.participants) {
-                champ.participants.forEach(u => scores[u] = { id: u, name: users[u] || '?', points: 0, correct: 0 });
-            }
-            
-            // Calculate
-            for (const m of matches.filter(x => x.status === 'FINISHED')) {
-                const res = results.find(r => r.matchId === m.id);
-                if(!res) continue;
-                const bets = await db.fetchBetsForMatch(m.id);
-                bets.forEach(b => {
-                    if(scores[b.userId]) {
-                        m.questions.forEach(q => {
-                           if(String(b.answers[q.id]) === String(res.answers[q.id])) {
-                               scores[b.userId].points += q.points;
-                               scores[b.userId].correct++;
-                           }
-                        });
-                    }
-                });
-            }
-            setEntries(Object.values(scores).sort((a,b) => b.points - a.points));
-        };
-        load();
-    }, [champ]);
-
-    return (
-        <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden">
-             <div className="p-4 border-b border-border-dark bg-[#15202b]">
-                <h3 className="font-bold text-white flex items-center gap-2"><Icon name="leaderboard"/> Teljes Ranglista</h3>
-             </div>
-             <table className="w-full text-left">
-                <thead className="bg-[#15202b]/50 text-xs uppercase text-text-muted">
-                    <tr><th className="p-4 w-16 text-center">Hely</th><th className="p-4">Név</th><th className="p-4 text-center">Találat</th><th className="p-4 text-right">Pont</th></tr>
-                </thead>
-                <tbody className="divide-y divide-border-dark">
-                    {entries.map((e, i) => (
-                        <tr key={e.id} className="hover:bg-white/5 transition-colors">
-                            <td className="p-4 text-center">
-                                {i === 0 ? <Icon name="emoji_events" className="text-yellow-400"/> : 
-                                 i === 1 ? <Icon name="emoji_events" className="text-slate-400"/> :
-                                 i === 2 ? <Icon name="emoji_events" className="text-amber-700"/> :
-                                 <span className="font-mono text-text-muted font-bold">{i+1}.</span>}
-                            </td>
-                            <td className="p-4 font-bold text-white flex items-center gap-2">
-                                <div className="size-8 rounded-full bg-[#101922] flex items-center justify-center text-xs font-bold border border-border-dark text-text-muted">
-                                    {e.name[0].toUpperCase()}
-                                </div>
-                                {e.name}
-                            </td>
-                            <td className="p-4 text-center text-text-muted font-mono">{e.correct}</td>
-                            <td className="p-4 text-right font-black text-white text-lg">{e.points}</td>
-                        </tr>
-                    ))}
-                    {entries.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-text-muted">Még nincs adat.</td></tr>}
-                </tbody>
-             </table>
-        </div>
-    );
-}
-
-function QuickLeaderboardWidget({ champ, triggerRefresh, setPage }: { champ: Championship, triggerRefresh: number, setPage: any }) {
-    const [top5, setTop5] = useState<any[]>([]);
-
-    useEffect(() => {
-        const load = async () => {
-            const matches = await db.getMatches(champ.id);
-            const users = await db.getAllUsers();
-            const results = await db.fetchResults();
-            const scores: Record<string, any> = {};
-            if(champ.participants) champ.participants.forEach(u => scores[u] = { id: u, name: users[u] || '?', points: 0 });
-            
-            for (const m of matches.filter(x => x.status === 'FINISHED')) {
-                const res = results.find(r => r.matchId === m.id);
-                if(!res) continue;
-                const bets = await db.fetchBetsForMatch(m.id);
-                bets.forEach(b => {
-                    if(scores[b.userId]) {
-                        m.questions.forEach(q => {
-                           if(String(b.answers[q.id]) === String(res.answers[q.id])) scores[b.userId].points += q.points;
-                        });
-                    }
-                });
-            }
-            setTop5(Object.values(scores).sort((a,b) => b.points - a.points).slice(0, 5));
-        };
-        load();
-    }, [champ, triggerRefresh]);
-
-    return (
-       <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden shadow-lg">
-          <div className="p-4 border-b border-border-dark bg-gradient-to-r from-[#15202b] to-[#1a2632] flex justify-between items-center">
-            <h3 className="text-white font-bold flex items-center gap-2"><Icon name="military_tech" className="text-yellow-500"/> Élő Ranglista</h3>
-          </div>
-          <div className="divide-y divide-border-dark">
-             {top5.map((entry, i) => (
-                <div key={entry.id} className="p-3 flex items-center justify-between hover:bg-white/5 transition-colors">
-                   <div className="flex items-center gap-3">
-                      <span className={`font-mono font-bold w-6 text-center ${i===0?'text-yellow-400':i===1?'text-slate-300':i===2?'text-amber-600':'text-slate-600'}`}>{i+1}.</span>
-                      <span className="text-sm font-bold text-white truncate max-w-[120px]">{entry.name}</span>
-                   </div>
-                   <span className="text-sm font-black text-primary">{entry.points} p</span>
-                </div>
-             ))}
-             {top5.length === 0 && <div className="p-4 text-center text-text-muted text-sm">Nincs adat.</div>}
-          </div>
-          <div className="p-2 bg-[#15202b] text-center border-t border-border-dark">
-             <button onClick={() => setPage('LEADERBOARD')} className="text-xs font-bold text-text-muted hover:text-white uppercase tracking-wider py-2 w-full">Teljes táblázat mutatása</button>
-          </div>
-       </div>
-    );
-}
-
-function PromoWidget() {
-   return (
-      <div className="bg-gradient-to-br from-primary to-blue-700 rounded-2xl p-6 text-center shadow-lg relative overflow-hidden group">
-         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:scale-110 transition-transform duration-500"></div>
-         <div className="relative z-10">
-             <div className="size-12 bg-white/20 rounded-xl flex items-center justify-center mx-auto mb-3 text-white backdrop-blur-sm border border-white/20">
-                <Icon name="rocket_launch" className="text-2xl" />
-             </div>
-             <h3 className="text-white font-black mb-1 text-lg">HaverTipp Pro</h3>
-             <p className="text-blue-100 text-xs mb-4">Hamarosan részletes statisztikákkal és grafikonokkal jövünk!</p>
-             <button className="bg-white text-primary text-xs font-bold px-4 py-2 rounded-lg shadow-lg hover:bg-blue-50 transition-colors">Értesíts engem</button>
-         </div>
-      </div>
-   )
-}
-
-function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
-    const [isRegistering, setIsRegistering] = useState(false);
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const handleSubmit = async () => {
-        if (!username || !password) return setError('Minden mező kötelező!');
-        setLoading(true); setError('');
-        try { 
-            const user = isRegistering ? await db.register(username, password) : await db.login(username, password);
-            onLogin(user); 
-        } catch (e: any) { setError(e.message); } 
-        finally { setLoading(false); }
-    };
-
-    return (
-       <div className="min-h-screen flex items-center justify-center p-4 bg-background-dark relative overflow-hidden">
-          {/* Background decoration */}
-          <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
-          <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-
-          <div className="w-full max-w-md bg-surface-dark/80 backdrop-blur-xl p-8 rounded-3xl border border-border-dark text-center shadow-2xl relative z-10">
-             <div className="inline-flex p-4 rounded-2xl bg-[#111a22] text-primary mb-6 border border-border-dark shadow-lg shadow-primary/10">
-                <Icon name="sports_esports" className="text-4xl" />
-             </div>
-             <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Tippbajnok</h1>
-             <p className="text-text-muted mb-8 text-sm">A legjobb hely a baráti fogadásokhoz.</p>
-             
-             <div className="space-y-4 text-left">
-                <div>
-                    <label className="text-xs font-bold text-text-muted uppercase ml-1 mb-1 block">Felhasználónév</label>
-                    <input value={username} onChange={e => setUsername(e.target.value)} className="w-full bg-input-dark border border-border-dark rounded-xl p-3.5 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="Pl. Pisti99" />
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-text-muted uppercase ml-1 mb-1 block">Jelszó</label>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-input-dark border border-border-dark rounded-xl p-3.5 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="••••••••" />
-                </div>
-                
-                {error && <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm font-bold text-center flex items-center justify-center gap-2"><Icon name="error" className="text-lg"/> {error}</div>}
-                
-                <button onClick={handleSubmit} disabled={loading} className="w-full bg-primary hover:bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-primary/25 transition-all mt-4">
-                    {loading ? 'Betöltés...' : (isRegistering ? 'Fiók létrehozása' : 'Belépés')}
-                </button>
-                
-                <div className="pt-4 border-t border-border-dark mt-6">
-                    <p className="text-center text-sm text-text-muted">
-                        {isRegistering ? 'Már van fiókod?' : 'Még nincs fiókod?'} 
-                        <span className="text-primary font-bold cursor-pointer hover:underline ml-1" onClick={() => setIsRegistering(!isRegistering)}>
-                            {isRegistering ? 'Belépés' : 'Regisztráció'}
-                        </span>
-                    </p>
-                </div>
-             </div>
-          </div>
-       </div>
-    );
-}
-
-function CreateChampModal({ userId, onClose }: { userId: string, onClose: () => void }) {
-    const [name, setName] = useState(''); const [code, setCode] = useState(''); const [joinCode, setJoinCode] = useState('');
-    const handleCreate = async () => { if(!name || !code) return; try { await db.createChamp(name, code, userId); onClose(); } catch(e) { alert('Hiba!'); } }
-    const handleJoin = async () => { if(!joinCode) return; try { await db.joinChamp(joinCode, userId); onClose(); } catch(e) { alert('Hiba!'); } }
-
-    return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-surface-dark w-full max-w-lg rounded-2xl shadow-2xl p-8 border border-border-dark relative">
-                 <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-white"><Icon name="close" /></button>
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="size-10 rounded-full bg-primary/20 text-primary flex items-center justify-center border border-primary/20">
-                        <Icon name="trophy" className="text-xl"/>
-                    </div>
-                    <h2 className="text-2xl font-black text-white">Bajnokság Kezelése</h2>
-                </div>
-                
-                <div className="space-y-8">
-                    <div>
-                        <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2"><Icon name="add_circle" className="text-base"/> Új Létrehozása</h3>
-                        <div className="flex gap-2 mb-2">
-                            <input className="flex-1 bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Bajnokság neve" value={name} onChange={e => setName(e.target.value)} />
-                            <input className="w-28 bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none font-mono" placeholder="KÓD" value={code} onChange={e => setCode(e.target.value)} />
-                        </div>
-                        <p className="text-xs text-text-muted mb-3">A KÓD egyedi kell legyen (pl. HAVEROK2025).</p>
-                        <button onClick={handleCreate} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-primary/20 transition-all">Létrehozás</button>
-                    </div>
-                    
-                    <div className="relative">
-                        <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                            <div className="w-full border-t border-border-dark"></div>
-                        </div>
-                        <div className="relative flex justify-center">
-                            <span className="bg-surface-dark px-2 text-xs text-text-muted uppercase">Vagy</span>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2"><Icon name="login" className="text-base"/> Csatlakozás meglévőhöz</h3>
-                        <div className="flex gap-2">
-                            <input className="flex-1 bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-white outline-none font-mono" placeholder="Írd be a belépőkódot..." value={joinCode} onChange={e => setJoinCode(e.target.value)} />
-                            <button onClick={handleJoin} className="bg-white text-black px-6 rounded-xl font-bold hover:bg-gray-200 transition-colors">Belépés</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
 
 function CreateMatchModal({ champId, onClose }: { champId: string, onClose: () => void }) {
     const [p1, setP1] = useState(''); const [p2, setP2] = useState(''); const [date, setDate] = useState('');
