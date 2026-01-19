@@ -164,32 +164,17 @@ export default function App() {
 
 function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Championship) => void }) {
   const [champs, setChamps] = useState<Championship[]>([]);
-  const [publicChamps, setPublicChamps] = useState<Championship[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [globalRank, setGlobalRank] = useState<any[]>([]);
-  const [tab, setTab] = useState<'CHAMPS' | 'GLOBAL' | 'BROWSE'>('CHAMPS');
-  const [refresh, setRefresh] = useState(0);
+  const [tab, setTab] = useState<'CHAMPS' | 'GLOBAL'>('CHAMPS');
 
   useEffect(() => { 
       const load = async () => {
           setChamps(await db.getMyChamps(user.id));
           setGlobalRank(await db.getGlobalStats());
-          if (tab === 'BROWSE') {
-              setPublicChamps(await db.getPublicChamps(user.id));
-          }
       }; 
       load(); 
-  }, [showCreate, user, tab, refresh]);
-
-  const handlePublicJoin = async (c: Championship) => {
-      try {
-          await db.joinChamp(c.joinCode, user.id);
-          setTab('CHAMPS'); // Vissza a saját bajnokságokhoz
-          setRefresh(r => r + 1); // Trigger reload
-      } catch (err: any) {
-          alert("Hiba: " + err.message);
-      }
-  }
+  }, [showCreate, user]);
 
   return (
      <div className="max-w-6xl mx-auto space-y-10">
@@ -201,7 +186,7 @@ function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Cha
                 <div>
                     <h1 className="text-4xl md:text-5xl font-black text-white mb-4">Szia, {user.username}! 👋</h1>
                     <p className="text-blue-200 text-lg max-w-xl">
-                        Jó látni téged! Készen állsz a mai tippekre? Nézd meg a bajnokságaidat vagy csatlakozz egy nyilvános ligához!
+                        Jó látni téged! Készen állsz a mai tippekre? Nézd meg a bajnokságaidat vagy csekkold, hol állsz a világranglistán.
                     </p>
                     <div className="flex gap-4 mt-8">
                         <button onClick={() => setShowCreate(true)} className="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/25 transition-all flex items-center gap-2">
@@ -221,20 +206,17 @@ function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Cha
 
         {/* Tabs */}
         <div className="flex items-center justify-center mb-8">
-            <div className="bg-surface-dark p-1 rounded-full border border-border-dark inline-flex overflow-hidden">
+            <div className="bg-surface-dark p-1 rounded-full border border-border-dark inline-flex">
                 <button onClick={() => setTab('CHAMPS')} className={`px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 ${tab === 'CHAMPS' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white'}`}>
-                    <Icon name="trophy" className="text-lg"/> <span className="hidden md:inline">Bajnokságaim</span>
-                </button>
-                <button onClick={() => setTab('BROWSE')} className={`px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 ${tab === 'BROWSE' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white'}`}>
-                    <Icon name="search" className="text-lg"/> <span className="hidden md:inline">Böngészés</span> <span className="md:hidden">Ligák</span>
+                    <Icon name="trophy" className="text-lg"/> Bajnokságaim
                 </button>
                 <button onClick={() => setTab('GLOBAL')} className={`px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 ${tab === 'GLOBAL' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white'}`}>
-                    <Icon name="public" className="text-lg"/> <span className="hidden md:inline">Világranglista</span> <span className="md:hidden">Toplista</span>
+                    <Icon name="public" className="text-lg"/> Globális Ranglista
                 </button>
             </div>
         </div>
 
-        {tab === 'CHAMPS' && (
+        {tab === 'CHAMPS' ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {champs.map(c => (
                     <div key={c.id} onClick={() => onOpenChamp(c)} className="group relative bg-surface-dark border border-border-dark p-1 rounded-3xl hover:border-primary/50 cursor-pointer transition-all hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-1">
@@ -264,43 +246,7 @@ function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Cha
                     </div>
                 )}
             </div>
-        )}
-
-        {tab === 'BROWSE' && (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {publicChamps.map(c => (
-                    <div key={c.id} className="relative bg-[#1a2632] border border-border-dark p-6 rounded-3xl flex flex-col justify-between shadow-lg hover:border-primary/30 transition-all">
-                        <div>
-                             <div className="flex items-center gap-3 mb-4">
-                                 <div className="size-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/20">
-                                     <Icon name="public" />
-                                 </div>
-                                 <span className="text-[10px] font-bold uppercase text-blue-400 bg-blue-500/5 px-2 py-1 rounded border border-blue-500/10">Nyilvános Liga</span>
-                             </div>
-                             <h3 className="text-xl font-black text-white mb-1">{c.name}</h3>
-                             <p className="text-text-muted text-sm flex items-center gap-1">
-                                 <Icon name="group" className="text-sm"/> {c.participants?.length || 0} játékos
-                             </p>
-                        </div>
-                        <button 
-                            onClick={() => handlePublicJoin(c)}
-                            className="mt-6 w-full bg-surface-dark border border-border-dark hover:bg-primary hover:text-white hover:border-primary text-white py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                        >
-                            Csatlakozás <Icon name="login" />
-                        </button>
-                    </div>
-                 ))}
-                 {publicChamps.length === 0 && (
-                     <div className="col-span-full py-16 text-center text-text-muted">
-                         <Icon name="sentiment_dissatisfied" className="text-5xl mb-4 opacity-50" />
-                         <p className="font-bold">Nincsenek elérhető nyilvános bajnokságok.</p>
-                         <p className="text-sm opacity-50">Készíts egyet te, és állítsd nyilvánosra!</p>
-                     </div>
-                 )}
-            </div>
-        )}
-
-        {tab === 'GLOBAL' && (
+        ) : (
             <div className="space-y-8 max-w-4xl mx-auto">
                 {/* Podium */}
                 {globalRank.length > 0 && (
@@ -392,24 +338,14 @@ function DashboardHome({ user, onOpenChamp }: { user: User, onOpenChamp: (c: Cha
 function CreateChampModal({ userId, onClose }: { userId: string, onClose: () => void }) {
     const [name, setName] = useState('');
     const [code, setCode] = useState('');
-    const [isPublic, setIsPublic] = useState(false);
     const [mode, setMode] = useState<'CREATE' | 'JOIN'>('CREATE');
-    const [dbError, setDbError] = useState(false);
 
     const handleCreate = async () => {
         if(!name || !code) return;
-        setDbError(false);
         try {
-            await db.createChamp(name, code, userId, isPublic);
+            await db.createChamp(name, code, userId);
             onClose();
-        } catch(e: any) { 
-            console.error(e);
-            if (e.message && e.message.includes('is_public')) {
-                setDbError(true);
-            } else {
-                alert(e.message || "Hiba történt"); 
-            }
-        }
+        } catch(e: any) { alert(e.message); }
     };
 
     const handleJoin = async () => {
@@ -433,33 +369,15 @@ function CreateChampModal({ userId, onClose }: { userId: string, onClose: () => 
                  {mode === 'CREATE' ? (
                      <div className="space-y-4">
                          <h3 className="text-xl font-black text-white">Új Bajnokság</h3>
-                         {dbError && (
-                             <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg text-xs text-red-400">
-                                 Hiba: Hiányzó adatbázis oszlop. Futtasd le ezt a Supabase SQL Editorban:
-                                 <code className="block mt-1 bg-black/20 p-1 font-mono text-white select-all">alter table championships add column is_public boolean default false;</code>
-                             </div>
-                         )}
                          <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Bajnokság neve" value={name} onChange={e => setName(e.target.value)} />
                          <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Egyedi Csatlakozási Kód" value={code} onChange={e => setCode(e.target.value)} />
-                         
-                         {/* Public Toggle */}
-                         <div className="flex items-center justify-between bg-[#15202b] p-3 rounded-xl border border-border-dark" onClick={() => setIsPublic(!isPublic)}>
-                             <div>
-                                 <div className="text-sm font-bold text-white">Nyilvános Liga</div>
-                                 <div className="text-xs text-text-muted">Bárki láthatja és csatlakozhat</div>
-                             </div>
-                             <div className={`w-12 h-6 rounded-full p-1 transition-colors relative cursor-pointer ${isPublic ? 'bg-primary' : 'bg-slate-700'}`}>
-                                 <div className={`size-4 bg-white rounded-full shadow-md transition-all ${isPublic ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                             </div>
-                         </div>
-
-                         <button onClick={handleCreate} className="w-full bg-primary hover:bg-blue-600 text-white py-3.5 rounded-xl font-bold">Létrehozás</button>
+                         <button onClick={handleCreate} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold">Létrehozás</button>
                      </div>
                  ) : (
                      <div className="space-y-4">
                          <h3 className="text-xl font-black text-white">Csatlakozás</h3>
                          <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Csatlakozási Kód" value={code} onChange={e => setCode(e.target.value)} />
-                         <button onClick={handleJoin} className="w-full bg-primary hover:bg-blue-600 text-white py-3.5 rounded-xl font-bold">Csatlakozás</button>
+                         <button onClick={handleJoin} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold">Csatlakozás</button>
                      </div>
                  )}
             </div>
