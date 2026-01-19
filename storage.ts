@@ -55,7 +55,7 @@ export const logout = () => {
 
 // --- Logic ---
 
-export const createChamp = async (name: string, code: string, adminId: string) => {
+export const createChamp = async (name: string, code: string, adminId: string, isPublic: boolean) => {
   const { data: existing } = await supabase.from('championships').select('id').eq('join_code', code).single();
   if (existing) throw new Error('A kód foglalt!');
 
@@ -63,7 +63,8 @@ export const createChamp = async (name: string, code: string, adminId: string) =
       name,
       join_code: code,
       admin_id: adminId,
-      participants: [adminId] // JSONB array
+      participants: [adminId], // JSONB array
+      is_public: isPublic
   });
 
   if (error) throw error;
@@ -95,6 +96,32 @@ export const getMyChamps = async (userId: string): Promise<Championship[]> => {
       adminId: d.admin_id,
       participants: d.participants
   }));
+};
+
+export const getPublicChamps = async (userId: string): Promise<Championship[]> => {
+    // Lekérjük a publikusokat, amikben MÉG NINCS benne a user
+    // Sajnos a 'not.contains' nem mindig működik egyszerűen JSONB tömbökre kliens oldalon,
+    // így lekérjük az összes publikusat és JS-ben szűrünk.
+    const { data, error } = await supabase.from('championships')
+        .select('*')
+        .eq('is_public', true)
+        .order('name'); // Vagy created_at ha van
+
+    if (error) return [];
+
+    // Kiszűrjük, amiben már benne vagyunk
+    const notJoined = data.filter((d: any) => {
+        const parts = d.participants || [];
+        return !parts.includes(userId);
+    });
+
+    return notJoined.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        joinCode: d.join_code,
+        adminId: d.admin_id,
+        participants: d.participants
+    }));
 };
 
 export const getMatches = async (champId: string): Promise<Match[]> => {
