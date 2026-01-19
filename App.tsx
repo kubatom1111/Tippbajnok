@@ -358,9 +358,9 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                                  <label className="text-xs font-bold text-text-muted uppercase flex justify-between">
                                      {q.label}
                                  </label>
-                                 {q.type === QuestionType.WINNER && (
+                                 {(q.type === QuestionType.WINNER || q.type === QuestionType.CHOICE) && (
                                     <div className="flex gap-2">
-                                       {[match.player1, match.player2].map(p => (
+                                       {(q.options || [match.player1, match.player2]).map(p => (
                                           <button key={p} onClick={() => handleResultChange(q.id, p)} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${resultAnswers[q.id] === p ? 'bg-primary border-primary text-white' : 'bg-input-dark border-border-dark text-text-muted'}`}>{p}</button>
                                        ))}
                                     </div>
@@ -410,9 +410,9 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                                     <label className="text-xs font-bold text-text-muted uppercase flex justify-between">
                                         {q.label} <span>{q.points} pont</span>
                                     </label>
-                                    {q.type === QuestionType.WINNER && (
+                                    {(q.type === QuestionType.WINNER || q.type === QuestionType.CHOICE) && (
                                        <div className="flex gap-2">
-                                          {[match.player1, match.player2].map(p => (
+                                          {(q.options || [match.player1, match.player2]).map(p => (
                                              <button key={p} onClick={() => setAnswers({...answers, [q.id]: p})} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${answers[q.id] === p ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 'bg-input-dark border-border-dark text-text-muted hover:bg-border-dark'}`}>{p}</button>
                                           ))}
                                        </div>
@@ -743,7 +743,14 @@ function CreateMatchModal({ champId, onClose }: { champId: string, onClose: () =
     const save = async (type: 'F' | 'D') => {
         if(!p1 || !p2 || !date) return;
         const questions = type === 'F' 
-           ? [{ id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Győztes', points: 2, options: [p1, p2, 'Döntetlen'] }, { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Pontos Eredmény', points: 5 }]
+           ? [
+               { id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Mérkőzés Győztese', points: 2, options: [p1, 'Döntetlen', p2] },
+               { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Pontos Végeredmény', points: 5 },
+               { id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Félidő Eredmény', points: 2, options: [p1, 'Döntetlen', p2] },
+               { id: crypto.randomUUID(), type: QuestionType.OVER_UNDER, label: 'Gólszám 2.5', points: 1 },
+               { id: crypto.randomUUID(), type: QuestionType.CHOICE, label: 'Mindkét csapat lő gólt?', points: 1, options: ['Igen', 'Nem'] },
+               { id: crypto.randomUUID(), type: QuestionType.OVER_UNDER, label: 'Szögletek 9.5', points: 1 }
+             ]
            : [{ id: crypto.randomUUID(), type: QuestionType.WINNER, label: 'Győztes', points: 2, options: [p1, p2] }, { id: crypto.randomUUID(), type: QuestionType.EXACT_SCORE, label: 'Szett Eredmény', points: 5 }, { id: crypto.randomUUID(), type: QuestionType.OVER_UNDER, label: '180-asok (6.5)', points: 1 }, { id: crypto.randomUUID(), type: QuestionType.CHOICE, label: 'Magasabb Kiszálló', points: 1, options: [p1, p2] }];
         
         await db.createMatch({ championshipId: champId, player1: p1, player2: p2, startTime: new Date(date).toISOString(), status: 'SCHEDULED', questions });
