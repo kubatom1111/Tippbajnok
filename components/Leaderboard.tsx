@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { LeaderboardEntry, Championship } from '../types';
-import { getMatches, getBetsForMatch, getResult, getUserMap } from '../services/storageService';
+import * as db from '../storage';
 
 interface LeaderboardProps {
   championship: Championship;
@@ -14,8 +14,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
   useEffect(() => {
     const calculate = async () => {
       setLoading(true);
-      const matches = await getMatches(championship.id);
-      const userMap = getUserMap();
+      
+      // Load data from Supabase
+      const matches = await db.getMatches(championship.id);
+      const userMap = await db.getAllUsers();
+      const allResults = await db.fetchResults();
+      
       const finishedMatches = matches.filter(m => m.status === 'FINISHED');
       
       const scores: Record<string, LeaderboardEntry> = {};
@@ -25,10 +29,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
       });
 
       for (const match of finishedMatches) {
-        const result = getResult(match.id);
+        const result = allResults.find(r => r.matchId === match.id);
         if (!result) continue;
 
-        const bets = getBetsForMatch(match.id);
+        const bets = await db.fetchBetsForMatch(match.id);
         
         bets.forEach(bet => {
             if (!scores[bet.userId]) return;
