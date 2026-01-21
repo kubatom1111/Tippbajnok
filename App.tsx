@@ -3,7 +3,6 @@ import { User, Championship, Match, QuestionType, ChatMessage } from './types';
 import * as db from './storage';
 import { MatchList } from './components/MatchList';
 import { CreateMatchModal } from './components/CreateMatchModal';
-import { AIImportModal } from './components/AIImportModal';
 import { Leaderboard } from './components/Leaderboard';
 import { Button } from './components/Button';
 
@@ -448,7 +447,6 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
 function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: Championship, triggerRefresh: number }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [showAI, setShowAI] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -465,11 +463,6 @@ function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: 
     setShowCreate(false);
     load();
   };
-  
-  const handleAIMatchSave = async (matchData: any) => {
-      await db.createMatch(matchData);
-      load();
-  };
 
   return (
     <div className="space-y-6">
@@ -484,9 +477,6 @@ function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: 
         </div>
         {champ.adminId === user.id && (
           <div className="flex gap-2">
-             <button onClick={() => setShowAI(true)} className="bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-600/30 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition-all">
-                <Icon name="auto_awesome" className="text-lg" /> AI Import
-             </button>
              <Button onClick={() => setShowCreate(true)} size="sm">
                 <Icon name="add" className="mr-1 text-lg" /> Új Meccs
              </Button>
@@ -501,7 +491,6 @@ function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: 
       )}
 
       {showCreate && <CreateMatchModal championshipId={champ.id} onClose={() => setShowCreate(false)} onSave={handleCreateMatch} />}
-      {showAI && <AIImportModal championshipId={champ.id} onClose={() => setShowAI(false)} onSave={handleAIMatchSave} />}
     </div>
   );
 }
