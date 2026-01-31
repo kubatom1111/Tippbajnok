@@ -4,8 +4,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',
-  // A 'resources' mappát használjuk a statikus fájlokhoz a 'public' helyett
-  publicDir: 'resources',
+  // Kikapcsoljuk a statikus fájlok másolását, mert külső képet használunk, 
+  // és így elkerüljük a korábbi mappa-hibákat.
+  publicDir: false,
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
