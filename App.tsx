@@ -468,24 +468,53 @@ function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: 
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-white">{champ.name}</h2>
-          <div className="flex items-center gap-2 text-text-muted text-sm">
-            <span className="font-mono bg-surface-dark px-1.5 py-0.5 rounded border border-border-dark text-xs">{champ.joinCode}</span>
-            <span>•</span>
-            <span>{matches.length} mérkőzés</span>
-          </div>
-        </div>
-        <div className="flex gap-2">
-            <Button onClick={() => setShowInvite(true)} variant="secondary" size="sm">
-                <Icon name="share" className="mr-1 text-lg" /> Meghívó
-            </Button>
-            {champ.adminId === user.id && (
-                <Button onClick={() => setShowCreate(true)} size="sm">
-                    <Icon name="add" className="mr-1 text-lg" /> Új Meccs
-                </Button>
-            )}
+      {/* MODERN CHAMPIONSHIP HEADER */}
+      <div className="relative overflow-hidden rounded-3xl bg-[#15202b] border border-[#233648] p-6 md:p-8 shadow-2xl group">
+        {/* Background Decorative Elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#137fec]/10 rounded-full blur-[100px] -mr-20 -mt-20 pointer-events-none transition-opacity duration-700 group-hover:bg-[#137fec]/20"></div>
+
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+            
+            {/* Title & Metadata */}
+            <div className="text-center md:text-left flex-1 min-w-0">
+                <h2 className="text-3xl md:text-4xl font-black text-white mb-3 tracking-tight truncate">{champ.name}</h2>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                    <div className="px-3 py-1.5 rounded-lg bg-[#233648]/50 border border-[#233648] text-[#92adc9] font-mono text-sm font-bold flex items-center gap-2 group-hover:border-[#137fec]/30 transition-colors">
+                        <Icon name="key" className="text-base text-primary"/> 
+                        <span className="tracking-widest">{champ.joinCode}</span>
+                    </div>
+                    <div className="px-3 py-1.5 rounded-lg bg-[#233648]/50 border border-[#233648] text-[#92adc9] text-sm font-bold flex items-center gap-2 group-hover:border-[#137fec]/30 transition-colors">
+                        <Icon name="sports_soccer" className="text-base text-primary"/> 
+                        <span>{matches.length} mérkőzés</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Action Buttons Toolbar */}
+            <div className="flex items-center gap-3 w-full md:w-auto">
+                <button 
+                    onClick={() => setShowInvite(true)} 
+                    className="flex-1 md:flex-none group/btn relative overflow-hidden bg-[#233648] hover:bg-[#2c4053] text-white px-5 py-3 rounded-xl font-bold transition-all border border-[#344a61] shadow-lg hover:shadow-xl active:scale-95"
+                >
+                    <div className="relative z-10 flex items-center justify-center gap-2">
+                        <Icon name="qr_code_2" className="text-[#39ff14] group-hover/btn:scale-110 transition-transform duration-300"/> 
+                        <span>Meghívó</span>
+                    </div>
+                </button>
+
+                {champ.adminId === user.id && (
+                    <button 
+                        onClick={() => setShowCreate(true)} 
+                        className="flex-1 md:flex-none group/btn relative overflow-hidden bg-gradient-to-r from-[#137fec] to-blue-600 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+                    >
+                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300"></div>
+                        <div className="relative z-10 flex items-center justify-center gap-2">
+                            <Icon name="add_circle" className="text-white group-hover/btn:rotate-90 transition-transform duration-300"/> 
+                            <span>Új Meccs</span>
+                        </div>
+                    </button>
+                )}
+            </div>
         </div>
       </div>
 
