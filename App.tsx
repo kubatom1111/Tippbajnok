@@ -590,7 +590,7 @@ function QuickLeaderboardWidget({ champ, triggerRefresh, setPage }: { champ: Cha
         </button>
       </div>
       <div className="text-xs">
-         <Leaderboard championship={champ} refreshTrigger={triggerRefresh} />
+         <Leaderboard championship={champ} refreshTrigger={triggerRefresh} compact={true} />
       </div>
     </div>
   );

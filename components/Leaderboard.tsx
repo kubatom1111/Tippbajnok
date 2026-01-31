@@ -5,9 +5,10 @@ import * as db from '../storage';
 interface LeaderboardProps {
   championship: Championship;
   refreshTrigger: number;
+  compact?: boolean;
 }
 
-export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshTrigger }) => {
+export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshTrigger, compact = false }) => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,37 +54,43 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
     calculate();
   }, [championship, refreshTrigger]);
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Adatok betöltése...</div>;
+  if (loading) return <div className={`text-center text-slate-500 ${compact ? 'p-4' : 'p-8'}`}>Adatok betöltése...</div>;
+
+  // Stílus konstansok a compact mód alapján
+  const paddingClass = compact ? 'p-2' : 'p-4 md:p-5';
+  const headerClass = "bg-slate-900/50 text-slate-400 uppercase tracking-wider border-b border-slate-800 font-semibold";
+  const headerTextSize = compact ? "text-[10px]" : "text-xs";
 
   return (
     <div className="bg-sport-card border border-slate-800 rounded-xl overflow-hidden shadow-card">
       <table className="w-full text-left border-collapse">
-        <thead className="bg-slate-900/50 text-xs font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+        <thead className={`${headerClass} ${headerTextSize}`}>
           <tr>
-            <th className="p-5 w-16 text-center">#</th>
-            <th className="p-5">Játékos</th>
-            <th className="p-5 text-center">Találat</th>
-            <th className="p-5 text-right">Pontszám</th>
+            <th className={`${paddingClass} w-10 text-center`}>#</th>
+            <th className={`${paddingClass}`}>Játékos</th>
+            {/* Compact módban elrejtjük a találatokat, hogy kiférjen a pontszám */}
+            {!compact && <th className={`${paddingClass} text-center`}>Találat</th>}
+            <th className={`${paddingClass} text-right`}>Pont</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-800">
           {entries.map((entry, idx) => (
             <tr key={entry.userId} className={`group transition-colors hover:bg-slate-800/30 ${idx < 3 ? 'bg-slate-800/10' : ''}`}>
-              <td className="p-5 text-center">
-                 {idx === 0 ? <span className="text-xl">🥇</span> : 
-                  idx === 1 ? <span className="text-xl">🥈</span> :
-                  idx === 2 ? <span className="text-xl">🥉</span> :
+              <td className={`${paddingClass} text-center`}>
+                 {idx === 0 ? <span className={compact ? "text-sm" : "text-xl"}>🥇</span> : 
+                  idx === 1 ? <span className={compact ? "text-sm" : "text-xl"}>🥈</span> :
+                  idx === 2 ? <span className={compact ? "text-sm" : "text-xl"}>🥉</span> :
                   <span className="text-slate-500 font-mono">{(idx + 1).toString().padStart(2, '0')}</span>}
               </td>
-              <td className="p-5">
-                  <div className={`font-medium ${idx < 3 ? 'text-white text-base' : 'text-slate-300'}`}>
+              <td className={paddingClass}>
+                  <div className={`font-medium truncate max-w-[120px] ${idx < 3 ? 'text-white' : 'text-slate-300'} ${compact ? 'text-xs' : 'text-base'}`}>
                       {entry.username}
-                      {idx === 0 && <span className="ml-2 text-[10px] bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/30">BAJNOK</span>}
                   </div>
+                  {!compact && idx === 0 && <span className="text-[10px] bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/30 mt-1 inline-block">BAJNOK</span>}
               </td>
-              <td className="p-5 text-center text-slate-400 text-sm">{entry.correctTips}</td>
-              <td className="p-5 text-right">
-                  <span className={`font-bold text-lg ${idx === 0 ? 'text-sport-primary' : 'text-white'}`}>
+              {!compact && <td className={`${paddingClass} text-center text-slate-400 text-sm`}>{entry.correctTips}</td>}
+              <td className={`${paddingClass} text-right`}>
+                  <span className={`font-bold ${idx === 0 ? 'text-sport-primary' : 'text-white'} ${compact ? 'text-sm' : 'text-lg'}`}>
                     {entry.points}
                   </span>
               </td>
