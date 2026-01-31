@@ -5,6 +5,7 @@ import { MatchList } from './components/MatchList';
 import { CreateMatchModal } from './components/CreateMatchModal';
 import { Leaderboard } from './components/Leaderboard';
 import { Button } from './components/Button';
+import { InviteModal } from './components/InviteModal';
 
 // --- Icons (Material Symbols wrapper) ---
 const Icon = ({ name, className = "" }: { name: string, className?: string }) => (
@@ -447,6 +448,7 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
 function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: Championship, triggerRefresh: number }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -466,7 +468,7 @@ function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: 
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-white">{champ.name}</h2>
           <div className="flex items-center gap-2 text-text-muted text-sm">
@@ -475,13 +477,16 @@ function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: 
             <span>{matches.length} mérkőzés</span>
           </div>
         </div>
-        {champ.adminId === user.id && (
-          <div className="flex gap-2">
-             <Button onClick={() => setShowCreate(true)} size="sm">
-                <Icon name="add" className="mr-1 text-lg" /> Új Meccs
-             </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+            <Button onClick={() => setShowInvite(true)} variant="secondary" size="sm">
+                <Icon name="share" className="mr-1 text-lg" /> Meghívó
+            </Button>
+            {champ.adminId === user.id && (
+                <Button onClick={() => setShowCreate(true)} size="sm">
+                    <Icon name="add" className="mr-1 text-lg" /> Új Meccs
+                </Button>
+            )}
+        </div>
       </div>
 
       {loading ? (
@@ -491,6 +496,7 @@ function ChampionshipFeed({ user, champ, triggerRefresh }: { user: User, champ: 
       )}
 
       {showCreate && <CreateMatchModal championshipId={champ.id} onClose={() => setShowCreate(false)} onSave={handleCreateMatch} />}
+      {showInvite && <InviteModal championship={champ} onClose={() => setShowInvite(false)} />}
     </div>
   );
 }
