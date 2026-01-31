@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',
-  // Kikapcsoljuk a public mappa másolását, mert az jelenleg hibás (fájlként létezik) és megakasztja a buildet
-  publicDir: false,
+  // A 'resources' mappát használjuk a statikus fájlokhoz a 'public' helyett
+  publicDir: 'resources',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
