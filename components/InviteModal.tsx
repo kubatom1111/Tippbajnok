@@ -55,57 +55,66 @@ export const InviteModal: React.FC<InviteModalProps> = ({ championship, onClose 
 
     // 4. Content Drawing
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle'; // Fontos a függőleges igazításhoz
+
+    const centerX = width / 2;
 
     // "TIPPBAJNOK" Label
-    ctx.font = 'bold 40px sans-serif';
+    ctx.font = 'bold 50px sans-serif';
     ctx.fillStyle = '#137fec';
-    ctx.fillText('TIPPBAJNOK', width / 2, 100);
+    ctx.fillText('TIPPBAJNOK', centerX, 150);
 
     // "MEGHÍVÓ" Label
     ctx.font = 'bold 30px sans-serif';
     ctx.fillStyle = '#92adc9';
-    ctx.letterSpacing = '10px';
-    ctx.fillText('MEGHÍVÓ', width / 2, 160);
+    // Ritkított írás manuálisan, hogy biztosan jó legyen minden böngészőben
+    ctx.fillText('M E G H Í V Ó', centerX, 220);
 
     // Championship Name
-    ctx.font = '900 80px sans-serif';
+    ctx.font = '900 90px sans-serif';
     ctx.fillStyle = '#ffffff';
-    // Text wrapping logic simplified
-    const words = championship.name.split(' ');
-    let line = '';
-    let y = 400;
-    // Simple wrap logic could be added here, but for now assuming it fits or we scale
-    ctx.fillText(championship.name, width / 2, y);
+    // Fő szöveg pozícionálása
+    ctx.fillText(championship.name, centerX, 420);
 
     // "CSATLAKOZÁSI KÓD" Label
-    y += 150;
     ctx.font = 'bold 30px sans-serif';
     ctx.fillStyle = '#92adc9';
-    ctx.fillText('CSATLAKOZÁSI KÓD:', width / 2, y);
+    ctx.fillText('CSATLAKOZÁSI KÓD:', centerX, 600);
 
-    // The Code Box
-    y += 40;
+    // The Code Box Logic
     const code = championship.joinCode;
-    ctx.font = '900 120px monospace';
+    ctx.font = '900 130px monospace'; // Monospace a számokhoz jobb
     
-    // Draw box behind code
-    const codeWidth = ctx.measureText(code).width + 100;
+    // Doboz méretezése a szöveghez
+    const codeMetrics = ctx.measureText(code);
+    const boxWidth = codeMetrics.width + 120;
+    const boxHeight = 220;
+    const boxCenterY = 760;
+    const boxTopY = boxCenterY - (boxHeight / 2);
+
+    // Draw box
     ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.strokeStyle = '#137fec';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.roundRect((width - codeWidth) / 2, y - 100, codeWidth, 140, 20);
+    // roundRect támogatás ellenőrzése nélkül is működő lekerekített téglalap
+    if (ctx.roundRect) {
+        ctx.roundRect((width - boxWidth) / 2, boxTopY, boxWidth, boxHeight, 30);
+    } else {
+        ctx.rect((width - boxWidth) / 2, boxTopY, boxWidth, boxHeight); // Fallback
+    }
     ctx.fill();
     ctx.stroke();
 
     // Draw Code Text
     ctx.fillStyle = '#39ff14'; // Neon Green
-    ctx.fillText(code, width / 2, y + 10);
+    // Pici optikai korrekció (+5px), hogy a betűtípus vizuálisan is középen legyen
+    ctx.fillText(code, centerX, boxCenterY + 10);
 
     // Footer
     ctx.font = '24px sans-serif';
     ctx.fillStyle = '#556980';
-    ctx.fillText('tippbajnok.vercel.app', width / 2, height - 50);
+    ctx.fillText('tippbajnok.vercel.app', centerX, height - 60);
 
     // 5. Save
     setImageUrl(canvas.toDataURL('image/png'));
@@ -122,7 +131,6 @@ export const InviteModal: React.FC<InviteModalProps> = ({ championship, onClose 
   const handleShare = async () => {
     if (imageUrl && navigator.share) {
         try {
-            // Convert DataURL to Blob
             const res = await fetch(imageUrl);
             const blob = await res.blob();
             const file = new File([blob], 'invite.png', { type: 'image/png' });
@@ -136,7 +144,6 @@ export const InviteModal: React.FC<InviteModalProps> = ({ championship, onClose 
             console.error(err);
         }
     } else {
-        // Fallback: Copy text
         const text = `Gyertek játszani a ${championship.name} tippversenybe! \nKód: ${championship.joinCode}\nLink: https://tippbajnok.vercel.app`;
         navigator.clipboard.writeText(text);
         alert('A meghívó szövege a vágólapra másolva!');
@@ -154,10 +161,8 @@ export const InviteModal: React.FC<InviteModalProps> = ({ championship, onClose 
             <Icon name="qr_code_2" /> Meghívó Készítése
         </h3>
 
-        {/* Canvas is hidden, used for generation */}
         <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-        {/* Preview Image */}
         {imageUrl ? (
             <img 
                 src={imageUrl} 
