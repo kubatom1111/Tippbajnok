@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { User } from '../types';
+import * as db from '../storage';
 
 const Icon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -8,6 +9,16 @@ const Icon = ({ name, className = "" }: { name: string, className?: string }) =>
 export function ProfileModal({ user, onClose }: { user: User, onClose: () => void }) {
     const nextLevelXp = user.level * 100;
     const progress = (user.xp / nextLevelXp) * 100;
+
+    const [stats, setStats] = useState({ points: 0, winRate: 0 });
+
+    useEffect(() => {
+        const loadStats = async () => {
+            const s = await db.getUserStats(user.id);
+            setStats({ points: s.points, winRate: s.winRate });
+        };
+        loadStats();
+    }, [user.id]);
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -54,11 +65,11 @@ export function ProfileModal({ user, onClose }: { user: User, onClose: () => voi
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-surface-dark p-4 rounded-2xl border border-border-dark text-center">
                             <div className="text-text-muted text-xs uppercase font-bold mb-1">Összpontszám</div>
-                            <div className="text-2xl font-black text-white">0</div>
+                            <div className="text-2xl font-black text-white">{stats.points}</div>
                         </div>
                         <div className="bg-surface-dark p-4 rounded-2xl border border-border-dark text-center">
                             <div className="text-text-muted text-xs uppercase font-bold mb-1">Győzelmi Arány</div>
-                            <div className="text-2xl font-black text-white">0%</div>
+                            <div className="text-2xl font-black text-white">{stats.winRate}%</div>
                         </div>
                     </div>
 

@@ -282,6 +282,99 @@ export const getGlobalStats = async () => {
   return Object.values(stats).sort((a, b) => b.points - a.points);
 };
 
+export const getUserStats = async (userId: string) => {
+  const { data: matches } = await supabase.from('matches').select('*').eq('status', 'FINISHED');
+  const { data: results } = await supabase.from('results').select('*');
+  const { data: bets } = await supabase.from('bets').select('*').eq('user_id', userId);
+
+  if (!matches || !results || !bets) return { points: 0, correct: 0, total: 0, winRate: 0 };
+
+  let points = 0;
+  let correct = 0;
+  let totalQuestions = 0;
+
+  matches.forEach((m: any) => {
+    const res = results.find((r: any) => r.match_id === m.id);
+    if (!res) return;
+
+    const bet = bets.find((b: any) => b.match_id === m.id);
+    if (!bet) return;
+
+    (m.questions as any[]).forEach(q => {
+      totalQuestions++;
+      if (String(bet.answers[q.id]) === String(res.answers[q.id])) {
+        points += q.points;
+        correct++;
+      }
+    });
+  });
+
+  const winRate = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
+  return { points, correct, total: totalQuestions, winRate };
+};
+
+export const getConsecutiveCorrectTips = async (userId: string): Promise<number> => {
+  const { data: matches } = await supabase.from('matches').select('*').eq('status', 'FINISHED').order('start_time', { ascending: false });
+  const { data: results } = await supabase.from('results').select('*');
+  const { data: bets } = await supabase.from('bets').select('*').eq('user_id', userId);
+
+  if (!matches || !results || !bets || matches.length === 0) return 0;
+
+  let streak = 0;
+
+  // Iterate through matches sorted by newest first
+  for (const m of matches) {
+    const res = results.find((r: any) => r.match_id === m.id);
+    const bet = bets.find((b: any) => b.match_id === m.id);
+
+    // If user didn't bet, streak breaks? Or we only count participated matches?
+    // Rules say "Success in 3 matches in a row". 
+    // If I skip a match, does it break streak? Usually yes.
+    // But for simplicity, let's say "3 matches where I participated and got points". 
+    // If I didn't participate, it might not break, but let's be strict: it breaks.
+    // HOWEVER, "matches" contains ALL finished matches. 
+    // Let's filter matches where the user actually placed a bet to be fair (Active Streak).
+
+    if (!bet) continue; // Skip matches user didn't bet on? 
+    // Or if I didn't bet, I didn't win. Streak resets.
+    // Let's go with: Streak of "Correct Tips". 
+    // If I bet on 3 matches and won all 3, that's a streak.
+
+    let won = false;
+    if (bet && res) {
+      // Check if got ANY points
+      if (m.questions) {
+        (m.questions as any[]).forEach(q => {
+          if (String(bet.answers[q.id]) === String(res.answers[q.id])) {
+            won = true;
+          }
+        });
+      }
+    }
+
+    if (won) {
+      streak++;
+    } else {
+      // Streak broken
+      break;
+    }
+  }
+
+  return streak;
+};
+
+export const didBetToday = async (userId: string): Promise<boolean> => {
+  const today = new Date().toISOString().split('T')[0];
+  // Check bets with today's timestamp
+  // Note: timestamps in DB are ISO strings. 
+  // We can filter by "timestamp" column using string matching logic or client side.
+  const { data: bets } = await supabase.from('bets').select('timestamp').eq('user_id', userId);
+
+  if (!bets) return false;
+
+  return bets.some((b: any) => b.timestamp && b.timestamp.startsWith(today));
+};
+
 // --- Chat ---
 
 export const getChatMessages = async (champId: string): Promise<ChatMessage[]> => {

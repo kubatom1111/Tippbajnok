@@ -20,27 +20,55 @@ export function MissionsModal({ onClose, onUpdateUser }: { onClose: () => void, 
     // Simulating mission state with local state for now (could be moved to DB later)
     const [missions, setMissions] = useState<Mission[]>([
         { id: 1, title: "Napi Bejelentkezés", desc: "Lépj be minden nap!", progress: 1, total: 1, rewardXp: 50, claimed: false, icon: "calendar_today" },
-        { id: 2, title: "Mesterhármas", desc: "Tippelj helyesen 3 meccsre sorozatban.", progress: 1, total: 3, rewardXp: 150, claimed: false, icon: "local_fire_department" },
+        { id: 2, title: "Mesterhármas", desc: "Tippelj helyesen 3 meccsre sorozatban.", progress: 0, total: 3, rewardXp: 150, claimed: false, icon: "local_fire_department" },
         { id: 3, title: "Közösségi Ember", desc: "Hívj meg egy barátot.", progress: 0, total: 1, rewardXp: 100, claimed: false, icon: "group_add" },
+        { id: 4, title: "Napi Tippelő", desc: "Tippelj ma legalább egy meccsre!", progress: 0, total: 1, rewardXp: 30, claimed: false, icon: "sports_soccer" },
     ]);
 
     React.useEffect(() => {
         const claims = db.getMissionClaims();
         const today = new Date().toISOString().split('T')[0];
 
-        setMissions(prev => prev.map(m => {
-            const claimDate = claims[m.id];
-            if (!claimDate) return m;
+        const loadData = async () => {
+            const session = db.getSession();
+            if (!session) return;
 
-            // For Daily Mission (ID 1), check if claimed TODAY
-            if (m.id === 1) {
-                const claimedDay = claimDate.split('T')[0];
-                return { ...m, claimed: claimedDay === today };
-            }
+            const streak = await db.getConsecutiveCorrectTips(session.id);
+            const betToday = await db.didBetToday(session.id);
 
-            // For others, once claimed is forever (for now)
-            return { ...m, claimed: true };
-        }));
+            setMissions(prev => prev.map(m => {
+                const claimDate = claims[m.id];
+
+                // ID 1: Napi Bejelentkezés
+                if (m.id === 1) {
+                    if (!claimDate) return m;
+                    const claimedDay = claimDate.split('T')[0];
+                    return { ...m, claimed: claimedDay === today };
+                }
+
+                // ID 2: Mesterhármas
+                if (m.id === 2) {
+                    const isClaimed = !!claimDate;
+                    return { ...m, progress: streak, claimed: isClaimed };
+                }
+
+                // ID 4: Napi Tippelő
+                if (m.id === 4) {
+                    // Check if claimed TODAY
+                    let isClaimed = false;
+                    if (claimDate) {
+                        const claimedDay = claimDate.split('T')[0];
+                        isClaimed = (claimedDay === today);
+                    }
+                    return { ...m, progress: betToday ? 1 : 0, claimed: isClaimed };
+                }
+
+                // Others
+                if (claimDate) return { ...m, claimed: true };
+                return m;
+            }));
+        };
+        loadData();
     }, []);
 
     const handleClaim = async (mission: Mission) => {
