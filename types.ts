@@ -9,6 +9,9 @@ export interface User {
   id: string;
   username: string;
   passwordHash?: string;
+  xp: number;
+  level: number;
+  rank: string;
 }
 
 export interface ChatMessage {

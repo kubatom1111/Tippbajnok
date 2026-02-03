@@ -8,6 +8,7 @@ import { Button } from './components/Button';
 import { InviteModal } from './components/InviteModal';
 import { RulesModal } from './components/RulesModal';
 import { MissionsModal } from './components/MissionsModal';
+import { ProfileModal } from './components/ProfileModal';
 
 // --- Icons (Material Symbols wrapper) ---
 const Icon = ({ name, className = "" }: { name: string, className?: string }) => (
@@ -23,6 +24,13 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+
+  // Reload user data (e.g. after gaining XP)
+  const handleUserUpdate = () => {
+    const u = db.getSession();
+    if (u) setUser(u);
+  };
 
   useEffect(() => {
     const u = db.getSession();
@@ -84,12 +92,14 @@ export default function App() {
           </div>
 
           {/* User Profile */}
-          <div className="hidden md:flex items-center gap-3 pl-6 border-l border-border-dark">
+          <div className="hidden md:flex items-center gap-3 pl-6 border-l border-border-dark cursor-pointer group" onClick={() => setShowProfile(true)}>
             <div className="text-right">
-              <p className="text-sm font-bold text-white max-w-[100px] truncate">{user?.username}</p>
-              <button onClick={handleLogout} className="text-xs text-text-muted hover:text-red-400 font-medium flex items-center justify-end gap-1"><Icon name="logout" className="text-xs" /> Kilépés</button>
+              <p className="text-sm font-bold text-white max-w-[100px] truncate group-hover:text-primary transition-colors">{user?.username}</p>
+              <div className="flex items-center justify-end gap-1">
+                <span className="text-[10px] font-bold text-yellow-500 bg-yellow-500/10 px-1.5 rounded uppercase">{user?.rank || 'Újonc'}</span>
+              </div>
             </div>
-            <div className="size-10 rounded-full bg-gradient-to-br from-primary to-blue-600 border-2 border-[#15202b] shadow-lg flex items-center justify-center text-lg font-bold text-white">
+            <div className="size-10 rounded-full bg-gradient-to-br from-primary to-blue-600 border-2 border-[#15202b] shadow-lg flex items-center justify-center text-lg font-bold text-white group-hover:scale-105 transition-transform">
               {user?.username[0].toUpperCase()}
             </div>
           </div>
@@ -117,10 +127,10 @@ export default function App() {
                 <Icon name="home" /> Főoldal
               </button>
               <button
-                onClick={() => { setPage('DASHBOARD'); setActiveChamp(null); setDashboardTab('CHAMPS'); setMobileMenuOpen(false); }}
-                className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 ${page === 'DASHBOARD' && !activeChamp && dashboardTab === 'CHAMPS' ? 'bg-primary text-white' : 'bg-surface-dark text-text-muted'}`}
+                onClick={() => { setShowProfile(true); setMobileMenuOpen(false); }}
+                className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 bg-surface-dark text-text-muted`}
               >
-                <Icon name="home" /> Főoldal
+                <Icon name="person" /> Profil
               </button>
               <button
                 onClick={() => { setShowRules(true); setMobileMenuOpen(false); }}
@@ -164,17 +174,17 @@ export default function App() {
             <div className="h-px bg-border-dark w-full"></div>
 
             {/* Mobile User Profile */}
-            <div className="flex items-center justify-between bg-surface-dark p-3 rounded-xl border border-border-dark">
+            <div className="flex items-center justify-between bg-surface-dark p-3 rounded-xl border border-border-dark cursor-pointer active:scale-95 transition-transform" onClick={() => { setShowProfile(true); setMobileMenuOpen(false); }}>
               <div className="flex items-center gap-3">
                 <div className="size-10 rounded-full bg-gradient-to-br from-primary to-blue-600 border border-white/10 flex items-center justify-center text-lg font-bold text-white">
                   {user?.username[0].toUpperCase()}
                 </div>
                 <div>
                   <p className="text-sm font-bold text-white">{user?.username}</p>
-                  <p className="text-xs text-text-muted">Bejelentkezve</p>
+                  <p className="text-xs text-yellow-500 font-bold uppercase">{user?.rank || 'Újonc'}</p>
                 </div>
               </div>
-              <button onClick={handleLogout} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg transition-colors">
+              <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg transition-colors">
                 <Icon name="logout" />
               </button>
             </div>
@@ -209,7 +219,8 @@ export default function App() {
 
       {/* Modals */}
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
-      {showMissions && <MissionsModal onClose={() => setShowMissions(false)} />}
+      {showMissions && <MissionsModal onClose={() => setShowMissions(false)} onUpdateUser={handleUserUpdate} />}
+      {showProfile && user && <ProfileModal user={user} onClose={() => setShowProfile(false)} />}
     </div>
   );
 }

@@ -9,21 +9,41 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- Auth ---
 
+// --- Logic Helpers ---
+
+const calculateRank = (level: number): string => {
+  if (level < 5) return 'Újonc';
+  if (level < 10) return 'Amatőr';
+  if (level < 20) return 'Haladó';
+  if (level < 50) return 'Profi';
+  return 'Legenda';
+};
+
+// --- Auth ---
+
 export const register = async (username: string, password: string): Promise<User> => {
-  // Ellenőrizzük, hogy létezik-e
   const { data: existing } = await supabase.from('users').select('id').eq('username', username).single();
   if (existing) throw new Error('Foglalt felhasználónév!');
 
-  const passwordHash = btoa(password); // Demo hash
-  
+  const passwordHash = btoa(password);
+
+  // Try to insert with defaults if schema allows, otherwise just basic insert
   const { data, error } = await supabase.from('users').insert({
     username,
     password_hash: passwordHash
+    // xp, level, rank columns might not exist yet, so we don't send them
   }).select().single();
 
   if (error) throw error;
-  
-  const user = { id: data.id, username: data.username };
+
+  // Return with default stats (client-side extension)
+  const user: User = {
+    id: data.id,
+    username: data.username,
+    xp: 0,
+    level: 1,
+    rank: 'Újonc'
+  };
   localStorage.setItem('ht_session', JSON.stringify(user));
   return user;
 };
@@ -39,7 +59,14 @@ export const login = async (username: string, password: string): Promise<User> =
 
   if (error || !data) throw new Error('Hibás felhasználónév vagy jelszó!');
 
-  const user = { id: data.id, username: data.username };
+  // Merge DB data with defaults if columns are missing
+  const user: User = {
+    id: data.id,
+    username: data.username,
+    xp: data.xp || 0,
+    level: data.level || 1,
+    rank: calculateRank(data.level || 1)
+  };
   localStorage.setItem('ht_session', JSON.stringify(user));
   return user;
 };
@@ -50,7 +77,39 @@ export const getSession = (): User | null => {
 };
 
 export const logout = () => {
-    localStorage.removeItem('ht_session');
+  localStorage.removeItem('ht_session');
+};
+
+export const addXp = async (amount: number): Promise<User> => {
+  const session = getSession();
+  if (!session) throw new Error("No session");
+
+  let { xp, level, id } = session;
+  xp += amount;
+
+  // Level up logic (simple: level * 100 XP needed)
+  const nextLevelXp = level * 100;
+  if (xp >= nextLevelXp) {
+    xp -= nextLevelXp;
+    level++;
+  }
+
+  const rank = calculateRank(level);
+
+  const updatedUser: User = { ...session, xp, level, rank };
+
+  // Update Local Storage
+  localStorage.setItem('ht_session', JSON.stringify(updatedUser));
+
+  // Update DB (fire and forget, assume it works or ignore if schema mismatch)
+  // We use a try-catch so functionality works even if DB schema isn't updated
+  try {
+    await supabase.from('users').update({ xp, level }).eq('id', id);
+  } catch (e) {
+    console.warn("Could not update XP in DB (schema might be missing columns)", e);
+  }
+
+  return updatedUser;
 };
 
 // --- Logic ---
@@ -60,10 +119,10 @@ export const createChamp = async (name: string, code: string, adminId: string) =
   if (existing) throw new Error('A kód foglalt!');
 
   const { error } = await supabase.from('championships').insert({
-      name,
-      join_code: code,
-      admin_id: adminId,
-      participants: [adminId] // JSONB array
+    name,
+    join_code: code,
+    admin_id: adminId,
+    participants: [adminId] // JSONB array
   });
 
   if (error) throw error;
@@ -75,11 +134,11 @@ export const joinChamp = async (code: string, userId: string) => {
 
   const participants: string[] = champ.participants || [];
   if (!participants.includes(userId)) {
-      participants.push(userId);
-      const { error: updateError } = await supabase.from('championships')
-        .update({ participants })
-        .eq('id', champ.id);
-      if (updateError) throw updateError;
+    participants.push(userId);
+    const { error: updateError } = await supabase.from('championships')
+      .update({ participants })
+      .eq('id', champ.id);
+    if (updateError) throw updateError;
   }
 };
 
@@ -87,13 +146,13 @@ export const getMyChamps = async (userId: string): Promise<Championship[]> => {
   // Supabase postgREST filter jsonb contains
   const { data, error } = await supabase.from('championships').select('*').contains('participants', JSON.stringify([userId]));
   if (error) return [];
-  
+
   return data.map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      joinCode: d.join_code,
-      adminId: d.admin_id,
-      participants: d.participants
+    id: d.id,
+    name: d.name,
+    joinCode: d.join_code,
+    adminId: d.admin_id,
+    participants: d.participants
   }));
 };
 
@@ -102,28 +161,28 @@ export const getMatches = async (champId: string): Promise<Match[]> => {
     .select('*')
     .eq('championship_id', champId)
     .order('start_time', { ascending: true });
-    
+
   if (error) return [];
 
   return data.map((d: any) => ({
-      id: d.id,
-      championshipId: d.championship_id,
-      player1: d.player1,
-      player2: d.player2,
-      startTime: d.start_time,
-      status: d.status,
-      questions: d.questions
+    id: d.id,
+    championshipId: d.championship_id,
+    player1: d.player1,
+    player2: d.player2,
+    startTime: d.start_time,
+    status: d.status,
+    questions: d.questions
   }));
 };
 
 export const createMatch = async (match: Omit<Match, 'id'>) => {
   const { error } = await supabase.from('matches').insert({
-      championship_id: match.championshipId,
-      player1: match.player1,
-      player2: match.player2,
-      start_time: match.startTime,
-      status: match.status,
-      questions: match.questions
+    championship_id: match.championshipId,
+    player1: match.player1,
+    player2: match.player2,
+    start_time: match.startTime,
+    status: match.status,
+    questions: match.questions
   });
   if (error) throw error;
 };
@@ -131,37 +190,37 @@ export const createMatch = async (match: Omit<Match, 'id'>) => {
 export const saveBet = async (bet: Bet) => {
   // Upsert logic using user_id + match_id unique constraint
   const { error } = await supabase.from('bets').upsert({
-      user_id: bet.userId,
-      match_id: bet.matchId,
-      answers: bet.answers,
-      timestamp: bet.timestamp
+    user_id: bet.userId,
+    match_id: bet.matchId,
+    answers: bet.answers,
+    timestamp: bet.timestamp
   }, { onConflict: 'user_id,match_id' });
-  
+
   if (error) throw error;
 };
 
 // Async bet loader
 export const fetchBetsForMatch = async (matchId: string): Promise<Bet[]> => {
-    const { data, error } = await supabase.from('bets').select('*').eq('match_id', matchId);
-    if(error) return [];
-    return data.map((d: any) => ({
-        userId: d.user_id,
-        matchId: d.match_id,
-        answers: d.answers,
-        timestamp: d.timestamp
-    }));
+  const { data, error } = await supabase.from('bets').select('*').eq('match_id', matchId);
+  if (error) return [];
+  return data.map((d: any) => ({
+    userId: d.user_id,
+    matchId: d.match_id,
+    answers: d.answers,
+    timestamp: d.timestamp
+  }));
 }
 
 export const fetchResults = async (): Promise<MatchResult[]> => {
-    const { data } = await supabase.from('results').select('*');
-    return data ? data.map((d:any) => ({ matchId: d.match_id, answers: d.answers })) : [];
+  const { data } = await supabase.from('results').select('*');
+  return data ? data.map((d: any) => ({ matchId: d.match_id, answers: d.answers })) : [];
 }
 
 export const closeMatch = async (result: MatchResult) => {
   // 1. Save Result
   await supabase.from('results').upsert({
-      match_id: result.matchId,
-      answers: result.answers
+    match_id: result.matchId,
+    answers: result.answers
   });
 
   // 2. Update Match Status
@@ -169,8 +228,8 @@ export const closeMatch = async (result: MatchResult) => {
 };
 
 export const getAllUsers = async () => {
-    const { data } = await supabase.from('users').select('id, username');
-    return data ? data.reduce((acc: any, u: any) => ({...acc, [u.id]: u.username}), {}) : {};
+  const { data } = await supabase.from('users').select('id, username');
+  return data ? data.reduce((acc: any, u: any) => ({ ...acc, [u.id]: u.username }), {}) : {};
 };
 
 export const getGlobalStats = async () => {
@@ -184,67 +243,67 @@ export const getGlobalStats = async () => {
 
   const stats: Record<string, { username: string, points: number, correct: number }> = {};
   users.forEach((u: any) => {
-      stats[u.id] = { username: u.username, points: 0, correct: 0 };
+    stats[u.id] = { username: u.username, points: 0, correct: 0 };
   });
 
   matches.forEach((m: any) => {
-      const res = results.find((r: any) => r.match_id === m.id);
-      if(!res) return;
+    const res = results.find((r: any) => r.match_id === m.id);
+    if (!res) return;
 
-      const matchBets = bets.filter((b: any) => b.match_id === m.id);
-      matchBets.forEach((b: any) => {
-          if(!stats[b.user_id]) return;
-          (m.questions as any[]).forEach(q => {
-              if (String(b.answers[q.id]) === String(res.answers[q.id])) {
-                  stats[b.user_id].points += q.points;
-                  stats[b.user_id].correct++;
-              }
-          });
+    const matchBets = bets.filter((b: any) => b.match_id === m.id);
+    matchBets.forEach((b: any) => {
+      if (!stats[b.user_id]) return;
+      (m.questions as any[]).forEach(q => {
+        if (String(b.answers[q.id]) === String(res.answers[q.id])) {
+          stats[b.user_id].points += q.points;
+          stats[b.user_id].correct++;
+        }
       });
+    });
   });
 
-  return Object.values(stats).sort((a,b) => b.points - a.points);
+  return Object.values(stats).sort((a, b) => b.points - a.points);
 };
 
 // --- Chat ---
 
 export const getChatMessages = async (champId: string): Promise<ChatMessage[]> => {
-    // 1. Üzenetek lekérése join nélkül a stabilitásért
-    const { data: msgs, error } = await supabase.from('chat_messages')
-        .select('*')
-        .eq('championship_id', champId)
-        .order('timestamp', { ascending: true })
-        .limit(50);
+  // 1. Üzenetek lekérése join nélkül a stabilitásért
+  const { data: msgs, error } = await supabase.from('chat_messages')
+    .select('*')
+    .eq('championship_id', champId)
+    .order('timestamp', { ascending: true })
+    .limit(50);
 
-    if (error) {
-        console.error("Chat error:", error);
-        return [];
-    }
-    
-    if (!msgs || msgs.length === 0) return [];
+  if (error) {
+    console.error("Chat error:", error);
+    return [];
+  }
 
-    // 2. Felhasználónevek lekérése külön
-    const userIds = [...new Set(msgs.map((m: any) => m.user_id))];
-    const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
-    
-    const userMap = users ? users.reduce((acc:any, u:any) => ({...acc, [u.id]: u.username}), {}) : {};
+  if (!msgs || msgs.length === 0) return [];
 
-    return msgs.map((d: any) => ({
-        id: d.id,
-        championshipId: d.championship_id,
-        userId: d.user_id,
-        username: userMap[d.user_id] || 'Ismeretlen',
-        text: d.text,
-        timestamp: d.timestamp
-    }));
+  // 2. Felhasználónevek lekérése külön
+  const userIds = [...new Set(msgs.map((m: any) => m.user_id))];
+  const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
+
+  const userMap = users ? users.reduce((acc: any, u: any) => ({ ...acc, [u.id]: u.username }), {}) : {};
+
+  return msgs.map((d: any) => ({
+    id: d.id,
+    championshipId: d.championship_id,
+    userId: d.user_id,
+    username: userMap[d.user_id] || 'Ismeretlen',
+    text: d.text,
+    timestamp: d.timestamp
+  }));
 };
 
 export const sendChatMessage = async (champId: string, userId: string, text: string) => {
-    const { error } = await supabase.from('chat_messages').insert({
-        championship_id: champId,
-        user_id: userId,
-        text,
-        timestamp: new Date().toISOString()
-    });
-    if (error) throw error;
+  const { error } = await supabase.from('chat_messages').insert({
+    championship_id: champId,
+    user_id: userId,
+    text,
+    timestamp: new Date().toISOString()
+  });
+  if (error) throw error;
 };
