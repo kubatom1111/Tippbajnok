@@ -24,8 +24,30 @@ export function MissionsModal({ onClose, onUpdateUser }: { onClose: () => void, 
         { id: 3, title: "Közösségi Ember", desc: "Hívj meg egy barátot.", progress: 0, total: 1, rewardXp: 100, claimed: false, icon: "group_add" },
     ]);
 
+    React.useEffect(() => {
+        const claims = db.getMissionClaims();
+        const today = new Date().toISOString().split('T')[0];
+
+        setMissions(prev => prev.map(m => {
+            const claimDate = claims[m.id];
+            if (!claimDate) return m;
+
+            // For Daily Mission (ID 1), check if claimed TODAY
+            if (m.id === 1) {
+                const claimedDay = claimDate.split('T')[0];
+                return { ...m, claimed: claimedDay === today };
+            }
+
+            // For others, once claimed is forever (for now)
+            return { ...m, claimed: true };
+        }));
+    }, []);
+
     const handleClaim = async (mission: Mission) => {
         if (mission.claimed) return; // Prevent double click
+
+        // Save locally
+        db.saveMissionClaim(mission.id);
 
         // Optimistic UI update
         setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, claimed: true } : m));

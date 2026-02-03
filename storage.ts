@@ -7,8 +7,6 @@ const SUPABASE_KEY = 'sb_publishable_loyC2ExGvYpKeSiCiCHgSg_I-1AXcUG';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- Auth ---
-
 // --- Logic Helpers ---
 
 const calculateRank = (level: number): string => {
@@ -87,11 +85,15 @@ export const addXp = async (amount: number): Promise<User> => {
   let { xp, level, id } = session;
   xp += amount;
 
-  // Level up logic (simple: level * 100 XP needed)
-  const nextLevelXp = level * 100;
-  if (xp >= nextLevelXp) {
-    xp -= nextLevelXp;
-    level++;
+  // Robust Level up logic (while loop)
+  while (true) {
+    const nextLevelXp = level * 100;
+    if (xp >= nextLevelXp) {
+      xp -= nextLevelXp;
+      level++;
+    } else {
+      break;
+    }
   }
 
   const rank = calculateRank(level);
@@ -110,6 +112,21 @@ export const addXp = async (amount: number): Promise<User> => {
   }
 
   return updatedUser;
+};
+
+// --- Missions Persistence ---
+
+const MISSION_STORAGE_KEY = 'ht_mission_claims';
+
+export const getMissionClaims = (): Record<number, string> => {
+  const s = localStorage.getItem(MISSION_STORAGE_KEY);
+  return s ? JSON.parse(s) : {};
+};
+
+export const saveMissionClaim = (missionId: number) => {
+  const claims = getMissionClaims();
+  claims[missionId] = new Date().toISOString(); // Store timestamp
+  localStorage.setItem(MISSION_STORAGE_KEY, JSON.stringify(claims));
 };
 
 // --- Logic ---
