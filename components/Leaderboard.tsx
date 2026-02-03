@@ -15,18 +15,18 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
   useEffect(() => {
     const calculate = async () => {
       setLoading(true);
-      
+
       // Load data from Supabase
       const matches = await db.getMatches(championship.id);
       const userMap = await db.getAllUsers();
       const allResults = await db.fetchResults();
-      
+
       const finishedMatches = matches.filter(m => m.status === 'FINISHED');
-      
+
       const scores: Record<string, LeaderboardEntry> = {};
 
       championship.participants.forEach(uid => {
-          scores[uid] = { userId: uid, username: userMap[uid] || 'Ismeretlen', points: 0, correctTips: 0 };
+        scores[uid] = { userId: uid, username: userMap[uid] || 'Ismeretlen', points: 0, correctTips: 0 };
       });
 
       for (const match of finishedMatches) {
@@ -34,16 +34,16 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
         if (!result) continue;
 
         const bets = await db.fetchBetsForMatch(match.id);
-        
-        bets.forEach(bet => {
-            if (!scores[bet.userId]) return;
 
-            match.questions.forEach(q => {
-                if (String(bet.answers[q.id]) === String(result.answers[q.id])) {
-                    scores[bet.userId].points += q.points;
-                    scores[bet.userId].correctTips += 1;
-                }
-            });
+        bets.forEach(bet => {
+          if (!scores[bet.userId]) return;
+
+          match.questions.forEach(q => {
+            if (String(bet.answers[q.id]) === String(result.answers[q.id])) {
+              scores[bet.userId].points += q.points;
+              scores[bet.userId].correctTips += 1;
+            }
+          });
         });
       }
 
@@ -61,6 +61,16 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
   const headerClass = "bg-slate-900/50 text-slate-400 uppercase tracking-wider border-b border-slate-800 font-semibold";
   const headerTextSize = compact ? "text-[10px]" : "text-xs";
 
+  // Badge Logic
+  const getBadges = (entry: LeaderboardEntry, rank: number) => {
+    const badges = [];
+    if (rank === 0) badges.push({ icon: '👑', title: 'Címvédő' });
+    if (entry.points > 50) badges.push({ icon: '🎖️', title: 'Veterán (50+ pont)' });
+    if (entry.correctTips > 5) badges.push({ icon: '🎯', title: 'Mesterlövész (5+ találat)' });
+    // Example: "Győzelmi széria" could be calculated if we had match history per user easily available here
+    return badges;
+  };
+
   return (
     <div className="bg-sport-card border border-slate-800 rounded-xl overflow-hidden shadow-card">
       <table className="w-full text-left border-collapse">
@@ -77,22 +87,25 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
           {entries.map((entry, idx) => (
             <tr key={entry.userId} className={`group transition-colors hover:bg-slate-800/30 ${idx < 3 ? 'bg-slate-800/10' : ''}`}>
               <td className={`${paddingClass} text-center`}>
-                 {idx === 0 ? <span className={compact ? "text-sm" : "text-xl"}>🥇</span> : 
+                {idx === 0 ? <span className={compact ? "text-sm" : "text-xl"}>🥇</span> :
                   idx === 1 ? <span className={compact ? "text-sm" : "text-xl"}>🥈</span> :
-                  idx === 2 ? <span className={compact ? "text-sm" : "text-xl"}>🥉</span> :
-                  <span className="text-slate-500 font-mono">{(idx + 1).toString().padStart(2, '0')}</span>}
+                    idx === 2 ? <span className={compact ? "text-sm" : "text-xl"}>🥉</span> :
+                      <span className="text-slate-500 font-mono">{(idx + 1).toString().padStart(2, '0')}</span>}
               </td>
               <td className={paddingClass}>
-                  <div className={`font-medium truncate max-w-[120px] ${idx < 3 ? 'text-white' : 'text-slate-300'} ${compact ? 'text-xs' : 'text-base'}`}>
-                      {entry.username}
-                  </div>
-                  {!compact && idx === 0 && <span className="text-[10px] bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/30 mt-1 inline-block">BAJNOK</span>}
+                <div className={`font-medium truncate max-w-[120px] flex items-center gap-1 ${idx < 3 ? 'text-white' : 'text-slate-300'} ${compact ? 'text-xs' : 'text-base'}`}>
+                  {entry.username}
+                  {getBadges(entry, idx).map((b, i) => (
+                    <span key={i} title={b.title} className="cursor-help text-xs filter drop-shadow hover:scale-125 transition-transform">{b.icon}</span>
+                  ))}
+                </div>
+                {!compact && idx === 0 && <span className="text-[10px] bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/30 mt-1 inline-block">BAJNOK</span>}
               </td>
               {!compact && <td className={`${paddingClass} text-center text-slate-400 text-sm`}>{entry.correctTips}</td>}
               <td className={`${paddingClass} text-right`}>
-                  <span className={`font-bold ${idx === 0 ? 'text-sport-primary' : 'text-white'} ${compact ? 'text-sm' : 'text-lg'}`}>
-                    {entry.points}
-                  </span>
+                <span className={`font-bold ${idx === 0 ? 'text-sport-primary' : 'text-white'} ${compact ? 'text-sm' : 'text-lg'}`}>
+                  {entry.points}
+                </span>
               </td>
             </tr>
           ))}

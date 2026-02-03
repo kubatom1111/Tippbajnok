@@ -6,16 +6,16 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
-  children, 
-  variant = 'primary', 
+export const Button: React.FC<ButtonProps> = ({
+  children,
+  variant = 'primary',
   fullWidth = false,
   size = 'md',
   className = '',
-  ...props 
+  ...props
 }) => {
   const baseStyle = "font-semibold rounded-lg transition-all duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0f111a] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm";
-  
+
   const sizeStyles = {
     sm: "px-3 py-1.5 text-xs",
     md: "px-5 py-2.5 text-sm",
@@ -31,7 +31,7 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <button 
+    <button
       className={`${baseStyle} ${variants[variant]} ${sizeStyles[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
       {...props}
     >
