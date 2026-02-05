@@ -132,8 +132,59 @@ export const addXp = async (amount: number): Promise<User> => {
   return updatedUser;
 };
 
-// --- Missions Persistence ---
+// --- Missions Persistence (Supabase) ---
 
+// SQL for mission_claims table (run this in Supabase):
+// CREATE TABLE IF NOT EXISTS mission_claims (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+//   mission_id INTEGER NOT NULL,
+//   claimed_at TIMESTAMPTZ DEFAULT now(),
+//   UNIQUE(user_id, mission_id)
+// );
+
+export const getMissionClaimsFromDB = async (userId: string): Promise<Record<number, string>> => {
+  const { data, error } = await supabase
+    .from('mission_claims')
+    .select('mission_id, claimed_at')
+    .eq('user_id', userId);
+
+  if (error || !data) return {};
+
+  const claims: Record<number, string> = {};
+  data.forEach((row: any) => {
+    claims[row.mission_id] = row.claimed_at;
+  });
+  return claims;
+};
+
+export const saveMissionClaimToDB = async (userId: string, missionId: number): Promise<boolean> => {
+  // Upsert: Insert or do nothing if already exists (prevents double-claim at DB level)
+  const { error } = await supabase
+    .from('mission_claims')
+    .upsert(
+      { user_id: userId, mission_id: missionId, claimed_at: new Date().toISOString() },
+      { onConflict: 'user_id,mission_id', ignoreDuplicates: true }
+    );
+
+  if (error) {
+    console.error("Failed to save mission claim:", error);
+    return false;
+  }
+  return true;
+};
+
+// Check if a daily mission was claimed TODAY by this user
+export const wasDailyMissionClaimedToday = async (userId: string, missionId: number): Promise<boolean> => {
+  const claims = await getMissionClaimsFromDB(userId);
+  const claimDate = claims[missionId];
+  if (!claimDate) return false;
+
+  const today = new Date().toISOString().split('T')[0];
+  return claimDate.split('T')[0] === today;
+};
+
+// DEPRECATED: Keep for backwards compatibility, but prefer DB functions
 const MISSION_STORAGE_KEY = 'ht_mission_claims';
 
 export const getMissionClaims = (): Record<number, string> => {
@@ -143,7 +194,7 @@ export const getMissionClaims = (): Record<number, string> => {
 
 export const saveMissionClaim = (missionId: number) => {
   const claims = getMissionClaims();
-  claims[missionId] = new Date().toISOString(); // Store timestamp
+  claims[missionId] = new Date().toISOString();
   localStorage.setItem(MISSION_STORAGE_KEY, JSON.stringify(claims));
 };
 
@@ -356,53 +407,68 @@ export const getGlobalStats = async () => {
 
   return Object.values(stats).sort((a, b) => b.points - a.points);
 };
+// --- Stats Cache ---
+const statsCache: Map<string, { data: any; expiry: number }> = new Map();
+const STATS_CACHE_TTL = 30 * 1000; // 30 seconds
+
+const getCachedStats = async (userId: string, fetcher: () => Promise<any>) => {
+  const cached = statsCache.get(userId);
+  if (cached && Date.now() < cached.expiry) {
+    return cached.data;
+  }
+  const data = await fetcher();
+  statsCache.set(userId, { data, expiry: Date.now() + STATS_CACHE_TTL });
+  return data;
+};
 
 export const getUserStats = async (userId: string) => {
-  // OPTIMIZED: Fetch bets for user FIRST
-  const { data: bets } = await supabase.from('bets').select('*').eq('user_id', userId);
+  return getCachedStats(`user_${userId}`, async () => {
+    // OPTIMIZED: Fetch bets for user FIRST
+    const { data: bets } = await supabase.from('bets').select('*').eq('user_id', userId);
 
-  if (!bets || bets.length === 0) return { points: 0, correct: 0, total: 0, winRate: 0 };
+    if (!bets || bets.length === 0) return { points: 0, correct: 0, total: 0, winRate: 0 };
 
-  const matchIds = bets.map((b: any) => b.match_id);
+    const matchIds = bets.map((b: any) => b.match_id);
 
-  // OPTIMIZED: Fetch only relevant matches and results
-  const { data: matches } = await supabase.from('matches').select('*').in('id', matchIds).eq('status', 'FINISHED');
-  const { data: results } = await supabase.from('results').select('*').in('match_id', matchIds);
+    // OPTIMIZED: Fetch only relevant matches and results
+    const { data: matches } = await supabase.from('matches').select('*').in('id', matchIds).eq('status', 'FINISHED');
+    const { data: results } = await supabase.from('results').select('*').in('match_id', matchIds);
 
-  if (!matches || !results) return { points: 0, correct: 0, total: 0, winRate: 0 };
+    if (!matches || !results) return { points: 0, correct: 0, total: 0, winRate: 0 };
 
-  let points = 0;
-  let correct = 0;
-  let totalQuestions = 0;
+    let points = 0;
+    let correct = 0;
+    let totalQuestions = 0;
 
-  matches.forEach((m: any) => {
-    const res = results.find((r: any) => r.match_id === m.id);
-    const bet = bets.find((b: any) => b.match_id === m.id);
+    matches.forEach((m: any) => {
+      const res = results.find((r: any) => r.match_id === m.id);
+      const bet = bets.find((b: any) => b.match_id === m.id);
 
-    if (!res || !bet) return; // Should not happen given constraints but safety first
+      if (!res || !bet) return;
 
-    if (m.questions) {
-      (m.questions as any[]).forEach(q => {
-        totalQuestions++;
-        const betAns = String(bet.answers[q.id]);
-        const resAns = String(res.answers[q.id]);
+      if (m.questions) {
+        (m.questions as any[]).forEach(q => {
+          totalQuestions++;
+          const betAns = String(bet.answers[q.id]);
+          const resAns = String(res.answers[q.id]);
 
-        if (betAns.includes('-') && resAns.includes('-')) {
-          const p = calculateSoccerPoints(betAns, resAns);
-          points += p;
-          if (p > 0) correct++;
-        } else {
-          if (betAns === resAns) {
-            points += q.points;
-            correct++;
+          if (betAns.includes('-') && resAns.includes('-')) {
+            const p = calculateSoccerPoints(betAns, resAns);
+            points += p;
+            if (p > 0) correct++;
+          } else {
+            if (betAns === resAns) {
+              points += q.points;
+              correct++;
+            }
           }
-        }
-      });
-    }
-  });
+        });
+      }
+    });
 
-  const winRate = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
-  return { points, correct, total: totalQuestions, winRate };
+    const winRate = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
+    return { points, correct, total: totalQuestions, winRate };
+  });
 };
 
 export const getConsecutiveCorrectTips = async (userId: string): Promise<number> => {

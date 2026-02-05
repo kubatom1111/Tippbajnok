@@ -17,57 +17,47 @@ type Mission = {
 };
 
 export function MissionsModal({ onClose, onUpdateUser }: { onClose: () => void, onUpdateUser: () => void }) {
-    // Read claims from localStorage IMMEDIATELY to prevent UI flicker
-    const initialClaims = db.getMissionClaims();
-    const today = new Date().toISOString().split('T')[0];
-
-    const isDailyClaimedToday = (missionId: number): boolean => {
-        const claimDate = initialClaims[missionId];
-        if (!claimDate) return false;
-        return claimDate.split('T')[0] === today;
-    };
-
-    const isEverClaimed = (missionId: number): boolean => {
-        return !!initialClaims[missionId];
-    };
-
     const [missions, setMissions] = useState<Mission[]>([
-        { id: 1, title: "Napi Bejelentkezés", desc: "Lépj be minden nap!", progress: 1, total: 1, rewardXp: 50, claimed: isDailyClaimedToday(1), icon: "calendar_today" },
-        { id: 2, title: "Mesterhármas", desc: "Tippelj helyesen 3 meccsre sorozatban.", progress: 0, total: 3, rewardXp: 150, claimed: isEverClaimed(2), icon: "local_fire_department" },
-        { id: 3, title: "Közösségi Ember", desc: "Hívj meg egy barátot.", progress: 0, total: 1, rewardXp: 100, claimed: isEverClaimed(3), icon: "group_add" },
-        { id: 4, title: "Napi Tippelő", desc: "Tippelj ma legalább egy meccsre!", progress: 0, total: 1, rewardXp: 30, claimed: isDailyClaimedToday(4), icon: "sports_soccer" },
+        { id: 1, title: "Napi Bejelentkezés", desc: "Lépj be minden nap!", progress: 1, total: 1, rewardXp: 50, claimed: false, icon: "calendar_today" },
+        { id: 2, title: "Mesterhármas", desc: "Tippelj helyesen 3 meccsre sorozatban.", progress: 0, total: 3, rewardXp: 150, claimed: false, icon: "local_fire_department" },
+        { id: 3, title: "Közösségi Ember", desc: "Hívj meg egy barátot.", progress: 0, total: 1, rewardXp: 100, claimed: false, icon: "group_add" },
+        { id: 4, title: "Napi Tippelő", desc: "Tippelj ma legalább egy meccsre!", progress: 0, total: 1, rewardXp: 30, claimed: false, icon: "sports_soccer" },
     ]);
+    const [loading, setLoading] = useState(true);
 
     React.useEffect(() => {
         const loadData = async () => {
             const session = db.getSession();
-            if (!session) return;
+            if (!session) {
+                setLoading(false);
+                return;
+            }
 
             const today = new Date().toISOString().split('T')[0];
-            const claimMap = db.getMissionClaims(); // Read fresh claims
 
+            // Fetch from Supabase (async)
+            const claimMap = await db.getMissionClaimsFromDB(session.id);
             const streak = await db.getConsecutiveCorrectTips(session.id);
             const betToday = await db.didBetToday(session.id);
 
             setMissions(prev => prev.map(m => {
                 const claimDate = claimMap[m.id];
 
-                // ID 1: Napi Bejelentkezés
+                // ID 1: Napi Bejelentkezés (daily)
                 if (m.id === 1) {
                     if (!claimDate) return { ...m, claimed: false };
                     const claimedDay = claimDate.split('T')[0];
                     return { ...m, claimed: claimedDay === today };
                 }
 
-                // ID 2: Mesterhármas
+                // ID 2: Mesterhármas (one-time)
                 if (m.id === 2) {
                     const isClaimed = !!claimDate;
                     return { ...m, progress: streak, claimed: isClaimed };
                 }
 
-                // ID 4: Napi Tippelő
+                // ID 4: Napi Tippelő (daily)
                 if (m.id === 4) {
-                    // Check if claimed TODAY
                     let isClaimed = false;
                     if (claimDate) {
                         const claimedDay = claimDate.split('T')[0];
@@ -76,54 +66,74 @@ export function MissionsModal({ onClose, onUpdateUser }: { onClose: () => void, 
                     return { ...m, progress: betToday ? 1 : 0, claimed: isClaimed };
                 }
 
-                // Others
+                // Others (one-time)
                 if (claimDate) return { ...m, claimed: true };
                 return m;
             }));
+            setLoading(false);
         };
         loadData();
     }, []);
 
     const handleClaim = async (mission: Mission) => {
-        if (mission.claimed) return; // Prevent double click (UI state)
+        if (mission.claimed) return;
 
-        // CRITICAL: Server-side (localStorage) check for DAILY missions
+        const session = db.getSession();
+        if (!session) return;
+
         const today = new Date().toISOString().split('T')[0];
-        const currentClaims = db.getMissionClaims();
+
+        // CRITICAL: Server-side (Supabase) check for repeated claims
+        const currentClaims = await db.getMissionClaimsFromDB(session.id);
         const existingClaimDate = currentClaims[mission.id];
 
-        // For daily missions (1: Napi Bejelentkezés, 4: Napi Tippelő), check if claimed TODAY
+        // For daily missions (1, 4), check if claimed TODAY
         if (mission.id === 1 || mission.id === 4) {
             if (existingClaimDate) {
                 const claimedDay = existingClaimDate.split('T')[0];
                 if (claimedDay === today) {
-                    // Already claimed today! Update UI and return silently.
                     setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, claimed: true } : m));
-                    console.warn(`Mission ${mission.id} already claimed today.`);
+                    console.warn(`Mission ${mission.id} already claimed today in DB.`);
                     return;
                 }
             }
         } else {
-            // For non-daily missions (like Mesterhármas), if ANY claim exists, block.
+            // For one-time missions, if ANY claim exists, block.
             if (existingClaimDate) {
                 setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, claimed: true } : m));
-                console.warn(`Mission ${mission.id} already claimed.`);
+                console.warn(`Mission ${mission.id} already claimed in DB.`);
                 return;
             }
         }
 
         // --- Safe to claim ---
-        db.saveMissionClaim(mission.id);
+        // Optimistic UI update
         setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, claimed: true } : m));
+
+        // Save to Supabase
+        const saved = await db.saveMissionClaimToDB(session.id, mission.id);
+        if (!saved) {
+            // Rollback on failure
+            setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, claimed: false } : m));
+            alert("Hiba a mentés során. Próbáld újra!");
+            return;
+        }
 
         try {
             await db.addXp(mission.rewardXp);
             onUpdateUser();
         } catch (e) {
             console.error("Failed to add XP:", e);
-            // Rollback UI? For now, keep it claimed to prevent retry spam.
         }
     };
+
+    if (loading) {
+        return (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center">
+                <div className="text-white text-lg animate-pulse">Küldetések betöltése...</div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
