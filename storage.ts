@@ -267,9 +267,46 @@ export const getAllUsers = async () => {
   return data ? data.reduce((acc: any, u: any) => ({ ...acc, [u.id]: u.username }), {}) : {};
 };
 
+// --- Soccer Logic ---
+
+export const calculateSoccerPoints = (betScore: string, resultScore: string): number => {
+  if (!betScore || !resultScore) return 0;
+
+  // Check if format is "X-Y"
+  if (!betScore.includes('-') || !resultScore.includes('-')) return 0;
+
+  const [b1, b2] = betScore.split('-').map(Number);
+  const [r1, r2] = resultScore.split('-').map(Number);
+
+  if (isNaN(b1) || isNaN(b2) || isNaN(r1) || isNaN(r2)) return 0;
+
+  // 1. Exact Match (5p)
+  if (b1 === r1 && b2 === r2) return 5;
+
+  const betDiff = b1 - b2;
+  const resDiff = r1 - r2;
+
+  // Determine winner (1: Home, 2: Away, 0: Draw)
+  const betOutcome = b1 > b2 ? 1 : (b2 > b1 ? 2 : 0);
+  const resOutcome = r1 > r2 ? 1 : (r2 > r1 ? 2 : 0);
+
+  // 2. Goal Difference + Winner (3p)
+  // Must have same winner AND same goal difference
+  // Note: Draw always has diff 0. So if both are draws, they match diff. 
+  // But exact match 5p is already handled.
+  // Example: Bet 2-0 (+2), Res 3-1 (+2). Winner Home. -> 3p.
+  if (betOutcome === resOutcome && betDiff === resDiff) return 3;
+
+  // 3. Outcome Only (1p)
+  if (betOutcome === resOutcome) return 1;
+
+  return 0;
+};
+
 export const getGlobalStats = async () => {
-  // Ez egy komplex lekérdezés lenne SQL-ben, de itt kliens oldalon rakjuk össze
+  // Client-side aggregation (for now, until we move to Supabase Views/Edge Functions)
   const { data: users } = await supabase.from('users').select('id, username');
+  // Only finished matches
   const { data: matches } = await supabase.from('matches').select('*').eq('status', 'FINISHED');
   const { data: results } = await supabase.from('results').select('*');
   const { data: bets } = await supabase.from('bets').select('*');
@@ -288,12 +325,32 @@ export const getGlobalStats = async () => {
     const matchBets = bets.filter((b: any) => b.match_id === m.id);
     matchBets.forEach((b: any) => {
       if (!stats[b.user_id]) return;
-      (m.questions as any[]).forEach(q => {
-        if (String(b.answers[q.id]) === String(res.answers[q.id])) {
-          stats[b.user_id].points += q.points;
-          stats[b.user_id].correct++;
-        }
-      });
+
+      // Calculate points
+      if (m.questions) {
+        (m.questions as any[]).forEach(q => {
+          // For simplicity, we assume the question ID for "Full Time Result" is usually something standard or we allow custom questions.
+          // BUT, the rules define "Score" points. 
+          // If the question is "Végeredmény", we use calculateSoccerPoints.
+          // If strictly matching custom questions, we stick to equality.
+          // Let's assume the question Answer IS the score "2-1".
+          const betAns = String(b.answers[q.id]);
+          const resAns = String(res.answers[q.id]);
+
+          // Check if it looks like a score?
+          if (betAns.includes('-') && resAns.includes('-')) {
+            const p = calculateSoccerPoints(betAns, resAns);
+            stats[b.user_id].points += p;
+            if (p > 0) stats[b.user_id].correct++;
+          } else {
+            // Classic direct match for non-score questions
+            if (betAns === resAns) {
+              stats[b.user_id].points += q.points;
+              stats[b.user_id].correct++;
+            }
+          }
+        });
+      }
     });
   });
 
@@ -301,11 +358,18 @@ export const getGlobalStats = async () => {
 };
 
 export const getUserStats = async (userId: string) => {
-  const { data: matches } = await supabase.from('matches').select('*').eq('status', 'FINISHED');
-  const { data: results } = await supabase.from('results').select('*');
+  // OPTIMIZED: Fetch bets for user FIRST
   const { data: bets } = await supabase.from('bets').select('*').eq('user_id', userId);
 
-  if (!matches || !results || !bets) return { points: 0, correct: 0, total: 0, winRate: 0 };
+  if (!bets || bets.length === 0) return { points: 0, correct: 0, total: 0, winRate: 0 };
+
+  const matchIds = bets.map((b: any) => b.match_id);
+
+  // OPTIMIZED: Fetch only relevant matches and results
+  const { data: matches } = await supabase.from('matches').select('*').in('id', matchIds).eq('status', 'FINISHED');
+  const { data: results } = await supabase.from('results').select('*').in('match_id', matchIds);
+
+  if (!matches || !results) return { points: 0, correct: 0, total: 0, winRate: 0 };
 
   let points = 0;
   let correct = 0;
@@ -313,18 +377,28 @@ export const getUserStats = async (userId: string) => {
 
   matches.forEach((m: any) => {
     const res = results.find((r: any) => r.match_id === m.id);
-    if (!res) return;
-
     const bet = bets.find((b: any) => b.match_id === m.id);
-    if (!bet) return;
 
-    (m.questions as any[]).forEach(q => {
-      totalQuestions++;
-      if (String(bet.answers[q.id]) === String(res.answers[q.id])) {
-        points += q.points;
-        correct++;
-      }
-    });
+    if (!res || !bet) return; // Should not happen given constraints but safety first
+
+    if (m.questions) {
+      (m.questions as any[]).forEach(q => {
+        totalQuestions++;
+        const betAns = String(bet.answers[q.id]);
+        const resAns = String(res.answers[q.id]);
+
+        if (betAns.includes('-') && resAns.includes('-')) {
+          const p = calculateSoccerPoints(betAns, resAns);
+          points += p;
+          if (p > 0) correct++;
+        } else {
+          if (betAns === resAns) {
+            points += q.points;
+            correct++;
+          }
+        }
+      });
+    }
   });
 
   const winRate = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
@@ -363,8 +437,17 @@ export const getConsecutiveCorrectTips = async (userId: string): Promise<number>
       // Check if got ANY points
       if (m.questions) {
         (m.questions as any[]).forEach(q => {
-          if (String(bet.answers[q.id]) === String(res.answers[q.id])) {
-            won = true;
+          // Use new Soccer Logic
+          const betAns = String(bet.answers[q.id]);
+          const resAns = String(res.answers[q.id]);
+
+          if (betAns.includes('-') && resAns.includes('-')) {
+            const p = calculateSoccerPoints(betAns, resAns);
+            if (p > 0) won = true;
+          } else {
+            if (betAns === resAns) {
+              won = true;
+            }
           }
         });
       }

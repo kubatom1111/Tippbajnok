@@ -26,22 +26,22 @@ export function MissionsModal({ onClose, onUpdateUser }: { onClose: () => void, 
     ]);
 
     React.useEffect(() => {
-        const claims = db.getMissionClaims();
-        const today = new Date().toISOString().split('T')[0];
-
         const loadData = async () => {
             const session = db.getSession();
             if (!session) return;
+
+            const today = new Date().toISOString().split('T')[0];
+            const claimMap = db.getMissionClaims(); // Read fresh claims
 
             const streak = await db.getConsecutiveCorrectTips(session.id);
             const betToday = await db.didBetToday(session.id);
 
             setMissions(prev => prev.map(m => {
-                const claimDate = claims[m.id];
+                const claimDate = claimMap[m.id];
 
                 // ID 1: Napi Bejelentkezés
                 if (m.id === 1) {
-                    if (!claimDate) return m;
+                    if (!claimDate) return { ...m, claimed: false };
                     const claimedDay = claimDate.split('T')[0];
                     return { ...m, claimed: claimedDay === today };
                 }

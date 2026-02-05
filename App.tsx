@@ -116,7 +116,10 @@ export default function App() {
 
           {/* Mobile Menu Toggle */}
           <div className="flex items-center gap-4 md:hidden">
-            <div className="size-8 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center text-sm font-bold text-white">
+            <div
+              className="size-8 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center text-sm font-bold text-white cursor-pointer active:scale-95 transition-transform"
+              onClick={() => setShowProfile(true)}
+            >
               {user?.username[0].toUpperCase()}
             </div>
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-white p-2 rounded-lg hover:bg-white/10 transition-colors">
