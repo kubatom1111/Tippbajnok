@@ -33,9 +33,19 @@ export default function App() {
   };
 
   useEffect(() => {
+    // 1. Optimistic load (Fast UI)
     const u = db.getSession();
     if (u) { setUser(u); setPage('DASHBOARD'); }
     else setPage('AUTH');
+
+    // 2. Background Sync (Data Consistency)
+    const sync = async () => {
+      if (db.getSession()) {
+        const fresh = await db.refreshSession();
+        if (fresh) setUser(fresh);
+      }
+    }
+    sync();
   }, []);
 
   const handleLogout = () => {
@@ -220,7 +230,7 @@ export default function App() {
       {/* Modals */}
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
       {showMissions && <MissionsModal onClose={() => setShowMissions(false)} onUpdateUser={handleUserUpdate} />}
-      {showProfile && user && <ProfileModal user={user} onClose={() => setShowProfile(false)} />}
+      {showProfile && user && <ProfileModal user={user} onClose={() => setShowProfile(false)} onLogout={handleLogout} />}
     </div>
   );
 }

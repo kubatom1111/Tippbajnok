@@ -6,7 +6,7 @@ const Icon = ({ name, className = "" }: { name: string, className?: string }) =>
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
 
-export function ProfileModal({ user, onClose }: { user: User, onClose: () => void }) {
+export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose: () => void, onLogout: () => void }) {
     const nextLevelXp = user.level * 100;
     const progress = (user.xp / nextLevelXp) * 100;
 
@@ -62,7 +62,7 @@ export function ProfileModal({ user, onClose }: { user: User, onClose: () => voi
                     </div>
 
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="bg-surface-dark p-4 rounded-2xl border border-border-dark text-center">
                             <div className="text-text-muted text-xs uppercase font-bold mb-1">Összpontszám</div>
                             <div className="text-2xl font-black text-white">{stats.points}</div>
@@ -72,6 +72,14 @@ export function ProfileModal({ user, onClose }: { user: User, onClose: () => voi
                             <div className="text-2xl font-black text-white">{stats.winRate}%</div>
                         </div>
                     </div>
+
+                    {/* Logout Button */}
+                    <button
+                        onClick={onLogout}
+                        className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                        <Icon name="logout" /> Kijelentkezés
+                    </button>
 
                 </div>
             </div>

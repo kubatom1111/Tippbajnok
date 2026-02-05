@@ -63,7 +63,7 @@ export const login = async (username: string, password: string): Promise<User> =
     username: data.username,
     xp: data.xp || 0,
     level: data.level || 1,
-    rank: calculateRank(data.level || 1)
+    rank: data.rank || calculateRank(data.level || 1)
   };
   localStorage.setItem('ht_session', JSON.stringify(user));
   return user;
@@ -72,6 +72,24 @@ export const login = async (username: string, password: string): Promise<User> =
 export const getSession = (): User | null => {
   const s = localStorage.getItem('ht_session');
   return s ? JSON.parse(s) : null;
+};
+
+export const refreshSession = async (): Promise<User | null> => {
+  const current = getSession();
+  if (!current) return null;
+
+  const { data, error } = await supabase.from('users').select('*').eq('id', current.id).single();
+  if (error || !data) return null;
+
+  const updatedUser: User = {
+    id: data.id,
+    username: data.username,
+    xp: data.xp || 0,
+    level: data.level || 1,
+    rank: data.rank || calculateRank(data.level || 1)
+  };
+  localStorage.setItem('ht_session', JSON.stringify(updatedUser));
+  return updatedUser;
 };
 
 export const logout = () => {
@@ -98,18 +116,18 @@ export const addXp = async (amount: number): Promise<User> => {
 
   const rank = calculateRank(level);
 
-  const updatedUser: User = { ...session, xp, level, rank };
+  // STRICT DB UPDATE FIRST
+  // If this fails, we throw and do NOT update local storage
+  const { error } = await supabase.from('users').update({ xp, level, rank }).eq('id', id);
 
-  // Update Local Storage
-  localStorage.setItem('ht_session', JSON.stringify(updatedUser));
-
-  // Update DB (fire and forget, assume it works or ignore if schema mismatch)
-  // We use a try-catch so functionality works even if DB schema isn't updated
-  try {
-    await supabase.from('users').update({ xp, level }).eq('id', id);
-  } catch (e) {
-    console.warn("Could not update XP in DB (schema might be missing columns)", e);
+  if (error) {
+    console.error("Critical: Could not save XP to server", error);
+    throw new Error("Hiba a mentés során! Az XP nem lett jóváírva.");
   }
+
+  // If successful, update local state
+  const updatedUser: User = { ...session, xp, level, rank };
+  localStorage.setItem('ht_session', JSON.stringify(updatedUser));
 
   return updatedUser;
 };
