@@ -17,12 +17,25 @@ type Mission = {
 };
 
 export function MissionsModal({ onClose, onUpdateUser }: { onClose: () => void, onUpdateUser: () => void }) {
-    // Simulating mission state with local state for now (could be moved to DB later)
+    // Read claims from localStorage IMMEDIATELY to prevent UI flicker
+    const initialClaims = db.getMissionClaims();
+    const today = new Date().toISOString().split('T')[0];
+
+    const isDailyClaimedToday = (missionId: number): boolean => {
+        const claimDate = initialClaims[missionId];
+        if (!claimDate) return false;
+        return claimDate.split('T')[0] === today;
+    };
+
+    const isEverClaimed = (missionId: number): boolean => {
+        return !!initialClaims[missionId];
+    };
+
     const [missions, setMissions] = useState<Mission[]>([
-        { id: 1, title: "Napi Bejelentkezés", desc: "Lépj be minden nap!", progress: 1, total: 1, rewardXp: 50, claimed: false, icon: "calendar_today" },
-        { id: 2, title: "Mesterhármas", desc: "Tippelj helyesen 3 meccsre sorozatban.", progress: 0, total: 3, rewardXp: 150, claimed: false, icon: "local_fire_department" },
-        { id: 3, title: "Közösségi Ember", desc: "Hívj meg egy barátot.", progress: 0, total: 1, rewardXp: 100, claimed: false, icon: "group_add" },
-        { id: 4, title: "Napi Tippelő", desc: "Tippelj ma legalább egy meccsre!", progress: 0, total: 1, rewardXp: 30, claimed: false, icon: "sports_soccer" },
+        { id: 1, title: "Napi Bejelentkezés", desc: "Lépj be minden nap!", progress: 1, total: 1, rewardXp: 50, claimed: isDailyClaimedToday(1), icon: "calendar_today" },
+        { id: 2, title: "Mesterhármas", desc: "Tippelj helyesen 3 meccsre sorozatban.", progress: 0, total: 3, rewardXp: 150, claimed: isEverClaimed(2), icon: "local_fire_department" },
+        { id: 3, title: "Közösségi Ember", desc: "Hívj meg egy barátot.", progress: 0, total: 1, rewardXp: 100, claimed: isEverClaimed(3), icon: "group_add" },
+        { id: 4, title: "Napi Tippelő", desc: "Tippelj ma legalább egy meccsre!", progress: 0, total: 1, rewardXp: 30, claimed: isDailyClaimedToday(4), icon: "sports_soccer" },
     ]);
 
     React.useEffect(() => {
@@ -72,16 +85,44 @@ export function MissionsModal({ onClose, onUpdateUser }: { onClose: () => void, 
     }, []);
 
     const handleClaim = async (mission: Mission) => {
-        if (mission.claimed) return; // Prevent double click
+        if (mission.claimed) return; // Prevent double click (UI state)
 
-        // Save locally
+        // CRITICAL: Server-side (localStorage) check for DAILY missions
+        const today = new Date().toISOString().split('T')[0];
+        const currentClaims = db.getMissionClaims();
+        const existingClaimDate = currentClaims[mission.id];
+
+        // For daily missions (1: Napi Bejelentkezés, 4: Napi Tippelő), check if claimed TODAY
+        if (mission.id === 1 || mission.id === 4) {
+            if (existingClaimDate) {
+                const claimedDay = existingClaimDate.split('T')[0];
+                if (claimedDay === today) {
+                    // Already claimed today! Update UI and return silently.
+                    setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, claimed: true } : m));
+                    console.warn(`Mission ${mission.id} already claimed today.`);
+                    return;
+                }
+            }
+        } else {
+            // For non-daily missions (like Mesterhármas), if ANY claim exists, block.
+            if (existingClaimDate) {
+                setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, claimed: true } : m));
+                console.warn(`Mission ${mission.id} already claimed.`);
+                return;
+            }
+        }
+
+        // --- Safe to claim ---
         db.saveMissionClaim(mission.id);
-
-        // Optimistic UI update
         setMissions(prev => prev.map(m => m.id === mission.id ? { ...m, claimed: true } : m));
 
-        await db.addXp(mission.rewardXp);
-        onUpdateUser();
+        try {
+            await db.addXp(mission.rewardXp);
+            onUpdateUser();
+        } catch (e) {
+            console.error("Failed to add XP:", e);
+            // Rollback UI? For now, keep it claimed to prevent retry spam.
+        }
     };
 
     return (
