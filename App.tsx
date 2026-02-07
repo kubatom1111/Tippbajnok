@@ -508,28 +508,37 @@ function CreateChampModal({ userId, onClose }: { userId: string, onClose: () => 
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-surface-dark w-full max-w-md rounded-2xl p-6 border border-border-dark relative shadow-2xl">
-        <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-white"><Icon name="close" /></button>
-
-        <div className="flex p-1 bg-black/20 rounded-xl mb-6">
-          <button onClick={() => setMode('CREATE')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${mode === 'CREATE' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Létrehozás</button>
-          <button onClick={() => setMode('JOIN')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${mode === 'JOIN' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Csatlakozás</button>
+      <div className="bg-surface-dark w-full max-w-md rounded-2xl border border-border-dark relative shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border-dark">
+          <h3 className="text-lg font-bold text-white">Bajnokság</h3>
+          <button onClick={onClose} className="size-8 rounded-full bg-black/20 hover:bg-black/40 flex items-center justify-center text-text-muted hover:text-white transition-colors">
+            <Icon name="close" />
+          </button>
         </div>
 
-        {mode === 'CREATE' ? (
-          <div className="space-y-4">
-            <h3 className="text-xl font-black text-white">Új Bajnokság</h3>
-            <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Bajnokság neve" value={name} onChange={e => setName(e.target.value)} />
-            <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Egyedi Csatlakozási Kód" value={code} onChange={e => setCode(e.target.value)} />
-            <button onClick={handleCreate} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold">Létrehozás</button>
+        {/* Content */}
+        <div className="p-4 space-y-4">
+          <div className="flex p-1 bg-black/20 rounded-xl">
+            <button onClick={() => setMode('CREATE')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${mode === 'CREATE' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Létrehozás</button>
+            <button onClick={() => setMode('JOIN')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${mode === 'JOIN' ? 'bg-primary text-white shadow-lg' : 'text-text-muted hover:text-white'}`}>Csatlakozás</button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <h3 className="text-xl font-black text-white">Csatlakozás</h3>
-            <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Csatlakozási Kód" value={code} onChange={e => setCode(e.target.value)} />
-            <button onClick={handleJoin} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold">Csatlakozás</button>
-          </div>
-        )}
+
+          {mode === 'CREATE' ? (
+            <div className="space-y-4">
+              <h3 className="text-xl font-black text-white">Új Bajnokság</h3>
+              <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Bajnokság neve" value={name} onChange={e => setName(e.target.value)} />
+              <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Egyedi Csatlakozási Kód" value={code} onChange={e => setCode(e.target.value)} />
+              <button onClick={handleCreate} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold">Létrehozás</button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="text-xl font-black text-white">Csatlakozás</h3>
+              <input className="w-full bg-input-dark border border-border-dark rounded-xl p-3 text-white focus:border-primary outline-none" placeholder="Csatlakozási Kód" value={code} onChange={e => setCode(e.target.value)} />
+              <button onClick={handleJoin} className="w-full bg-primary hover:bg-blue-600 text-white py-3 rounded-xl font-bold">Csatlakozás</button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

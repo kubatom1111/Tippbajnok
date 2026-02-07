@@ -45,9 +45,8 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
                         </div>
                     </div>
 
-                    <div className="space-y-1 mb-6">
+                    <div className="mb-6">
                         <h2 className="text-2xl font-black text-white">{user.username}</h2>
-                        <p className="text-text-muted text-sm">Csatlakozva: 2024</p>
                     </div>
 
                     {/* Level & XP */}
