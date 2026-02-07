@@ -284,29 +284,57 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                                                         <Icon name="receipt_long" className="text-[#137fec] text-lg" />
                                                     </div>
                                                     <div>
-                                                        <h4 className="text-white font-bold text-sm">A te tipped</h4>
+                                                        <h4 className="text-white font-bold text-sm">Összesítés</h4>
                                                         <p className="text-[#92adc9] text-[10px] uppercase tracking-wider">{match.questions.length} fogadási piac</p>
                                                     </div>
-                                                    <div className="ml-auto">
-                                                        <span className="bg-green-500/20 text-green-400 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full flex items-center gap-1">
-                                                            <Icon name="check_circle" className="text-xs" /> Leadva
-                                                        </span>
+                                                    <div className="ml-auto flex items-center gap-2">
+                                                        {points !== null && (
+                                                            <span className="bg-[#137fec]/20 text-[#137fec] text-xs font-bold px-2.5 py-1 rounded-full">
+                                                                +{points} pont
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
 
-                                                {/* Bet Items */}
-                                                <div className="p-4 space-y-3">
-                                                    {match.questions.map((q, idx) => (
-                                                        <div key={q.id} className="flex items-center justify-between bg-[#101922]/50 rounded-xl px-4 py-3 border border-[#233648]/50">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="text-[#92adc9] text-xs font-medium">{idx + 1}.</span>
-                                                                <span className="text-[#92adc9] text-sm">{q.label}</span>
+                                                {/* Column Headers */}
+                                                <div className="px-4 py-2 bg-[#0d1117]/50 border-b border-[#233648]/50 grid grid-cols-[1fr_auto_auto] gap-2 text-[10px] uppercase tracking-wider text-[#92adc9] font-bold">
+                                                    <span>Piac</span>
+                                                    <span className="w-20 text-center">Te tipped</span>
+                                                    <span className="w-20 text-center">Eredmény</span>
+                                                </div>
+
+                                                {/* Bet Items with Results */}
+                                                <div className="divide-y divide-[#233648]/30">
+                                                    {match.questions.map((q, idx) => {
+                                                        const isCorrect = resultAnswers[q.id] && String(answers[q.id]) === String(resultAnswers[q.id]);
+                                                        const hasResult = resultAnswers[q.id] !== undefined && resultAnswers[q.id] !== '';
+                                                        return (
+                                                            <div key={q.id} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-4 py-3">
+                                                                <div className="flex items-center gap-2 min-w-0">
+                                                                    <span className="text-[#92adc9] text-xs font-medium shrink-0">{idx + 1}.</span>
+                                                                    <span className="text-white text-sm truncate">{q.label}</span>
+                                                                </div>
+
+                                                                {/* User's Bet */}
+                                                                <div className="w-20 flex justify-center">
+                                                                    <span className={`font-bold px-2.5 py-1 rounded-lg text-xs ${hasResult ? (isCorrect ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30 line-through') : 'bg-[#137fec]/20 text-[#137fec] border border-[#137fec]/30'}`}>
+                                                                        {formatAnswer(answers[q.id])}
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* Official Result */}
+                                                                <div className="w-20 flex justify-center">
+                                                                    {hasResult ? (
+                                                                        <span className="font-bold bg-white/10 text-white px-2.5 py-1 rounded-lg text-xs border border-white/20">
+                                                                            {formatAnswer(resultAnswers[q.id])}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-[#92adc9] text-xs">–</span>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <span className="font-black text-white bg-[#137fec]/20 text-[#137fec] px-3 py-1.5 rounded-lg text-sm border border-[#137fec]/30">
-                                                                {formatAnswer(answers[q.id])}
-                                                            </span>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         )}
