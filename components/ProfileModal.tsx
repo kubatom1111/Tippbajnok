@@ -181,81 +181,121 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-[#15202b] w-full max-w-md rounded-3xl p-0 border border-border-dark shadow-2xl overflow-hidden">
-                {/* Banner / Header */}
-                <div className="h-32 bg-gradient-to-r from-blue-600 to-purple-600 relative">
-                    <button onClick={onClose} className="absolute top-4 right-4 size-8 rounded-full bg-black/20 hover:bg-black/40 flex items-center justify-center text-white transition-colors">
-                        <Icon name="close" />
-                    </button>
-                </div>
+            <div className="bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] w-full max-w-md rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative">
+                {/* Decorative blurs */}
+                <div className="absolute top-0 right-0 w-40 h-40 bg-primary/20 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl" />
 
-                {/* Profile Info */}
-                <div className="px-6 pb-8 relative">
-                    <div className="flex justify-between items-end -mt-12 mb-6">
-                        <div className="size-24 rounded-full bg-[#15202b] p-1.5">
-                            <div className="w-full h-full rounded-full bg-gradient-to-br from-primary to-blue-400 flex items-center justify-center text-3xl font-black text-white shadow-inner">
+                {/* Animated gradient border top */}
+                <div className="h-1.5 bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
+
+                {/* Close button */}
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 size-10 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur flex items-center justify-center text-white/60 hover:text-white transition-all z-10"
+                >
+                    <Icon name="close" />
+                </button>
+
+                {/* Profile Content */}
+                <div className="relative p-6 pt-8">
+                    {/* Avatar & Name Section */}
+                    <div className="flex flex-col items-center mb-6">
+                        {/* Avatar with glow */}
+                        <div className="relative mb-4">
+                            <div className="absolute inset-0 bg-gradient-to-br from-primary to-purple-600 rounded-full blur-xl opacity-50 scale-110" />
+                            <div className="relative size-24 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-4xl font-black text-white shadow-lg ring-4 ring-white/10">
                                 {user.username[0].toUpperCase()}
                             </div>
+                            {/* Level badge on avatar */}
+                            <div className="absolute -bottom-1 -right-1 size-8 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-xs font-black text-white shadow-lg border-2 border-[#0f172a]">
+                                {user.level}
+                            </div>
                         </div>
-                        <div className="bg-surface-dark border border-border-dark px-4 py-1.5 rounded-full flex items-center gap-2 mb-2">
-                            <Icon name="military_tech" className="text-yellow-400" />
-                            <span className="font-bold text-white text-sm uppercase tracking-wider">{user.rank}</span>
+
+                        {/* Username */}
+                        <h2 className="text-2xl font-black text-white tracking-tight mb-2">{user.username}</h2>
+
+                        {/* Rank Badge */}
+                        <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 flex items-center gap-2">
+                            <span className="text-lg">🏆</span>
+                            <span className="text-yellow-400 text-sm font-bold uppercase tracking-widest">{user.rank}</span>
                         </div>
                     </div>
 
-                    <div className="mb-6">
-                        <h2 className="text-2xl font-black text-white">{user.username}</h2>
-                    </div>
-
-                    {/* Level & XP */}
-                    <div className="bg-surface-dark rounded-2xl p-5 border border-border-dark mb-6">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Szint {user.level}</span>
-                            <span className="text-xs font-bold text-primary">{user.xp} / {nextLevelXp} XP</span>
+                    {/* XP Progress */}
+                    <div className="bg-white/5 backdrop-blur rounded-2xl p-4 border border-white/10 mb-5">
+                        <div className="flex justify-between items-center mb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="size-8 rounded-lg bg-gradient-to-br from-primary/30 to-purple-500/30 flex items-center justify-center">
+                                    <Icon name="trending_up" className="text-primary text-lg" />
+                                </div>
+                                <span className="text-sm font-bold text-white">Szint {user.level}</span>
+                            </div>
+                            <span className="text-sm font-bold text-primary">{user.xp} / {nextLevelXp} XP</span>
                         </div>
-                        <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                        <div className="relative w-full h-3 bg-black/40 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-gradient-to-r from-primary via-purple-500 to-pink-500 transition-all duration-500 relative"
+                                style={{ width: `${progress}%` }}
+                            >
+                                <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                            </div>
                         </div>
-                        <p className="text-[10px] text-text-muted mt-2 text-center">Gyűjts még {nextLevelXp - user.xp} XP-t a következő szinthez!</p>
+                        <p className="text-xs text-white/50 mt-2 text-center">
+                            Még <span className="text-primary font-bold">{nextLevelXp - user.xp} XP</span> a következő szinthez
+                        </p>
                     </div>
 
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-3 gap-3 mb-6">
-                        <div className="bg-surface-dark p-3 rounded-2xl border border-border-dark text-center">
-                            <div className="text-text-muted text-[10px] uppercase font-bold mb-1">Összpont</div>
-                            <div className="text-xl font-black text-white">{stats.points}</div>
-                        </div>
-                        <div className="bg-surface-dark p-3 rounded-2xl border border-border-dark text-center">
-                            <div className="text-text-muted text-[10px] uppercase font-bold mb-1">Győzelmi %</div>
-                            <div className="text-xl font-black text-white">{stats.winRate}%</div>
-                        </div>
-                        <div className="bg-surface-dark p-3 rounded-2xl border border-orange-500/30 text-center">
-                            <div className="text-orange-400 text-[10px] uppercase font-bold mb-1 flex items-center justify-center gap-1">
-                                <Icon name="local_fire_department" className="text-sm" /> Streak
+                    <div className="grid grid-cols-3 gap-3 mb-5">
+                        {/* Points */}
+                        <div className="bg-white/5 backdrop-blur rounded-2xl p-4 border border-white/10 text-center group hover:bg-white/10 transition-colors">
+                            <div className="size-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                                <Icon name="stars" className="text-blue-400" />
                             </div>
-                            <div className="text-xl font-black text-orange-400">{stats.streak}</div>
-                            {stats.streak >= 7 && <div className="text-[9px] text-orange-300 mt-0.5">2x XP!</div>}
+                            <div className="text-2xl font-black text-white">{stats.points}</div>
+                            <div className="text-[10px] text-white/50 uppercase font-bold tracking-wider">Összpont</div>
+                        </div>
+
+                        {/* Win Rate */}
+                        <div className="bg-white/5 backdrop-blur rounded-2xl p-4 border border-white/10 text-center group hover:bg-white/10 transition-colors">
+                            <div className="size-10 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                                <Icon name="emoji_events" className="text-green-400" />
+                            </div>
+                            <div className="text-2xl font-black text-green-400">{stats.winRate}%</div>
+                            <div className="text-[10px] text-white/50 uppercase font-bold tracking-wider">Győzelmi %</div>
+                        </div>
+
+                        {/* Streak */}
+                        <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 backdrop-blur rounded-2xl p-4 border border-orange-500/30 text-center group hover:from-orange-500/20 hover:to-red-500/20 transition-colors">
+                            <div className="size-10 rounded-xl bg-gradient-to-br from-orange-500/30 to-red-500/30 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                                <span className="text-xl">🔥</span>
+                            </div>
+                            <div className="text-2xl font-black text-orange-400">{stats.streak}</div>
+                            <div className="text-[10px] text-orange-300 uppercase font-bold tracking-wider">Streak</div>
+                            {stats.streak >= 7 && (
+                                <div className="text-[9px] text-orange-300 mt-1 bg-orange-500/20 rounded-full px-2 py-0.5 inline-block">2x XP!</div>
+                            )}
                         </div>
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3 mb-4">
+                    <div className="space-y-3">
                         <button
                             onClick={handleShare}
-                            className="flex-1 py-3 rounded-xl bg-primary/20 hover:bg-primary/30 text-primary font-bold flex items-center justify-center gap-2 transition-colors"
+                            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary hover:to-purple-500 text-white font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98]"
                         >
-                            <Icon name="share" /> Megosztás
+                            <Icon name="share" /> Profil Megosztása
+                        </button>
+
+                        <button
+                            onClick={onLogout}
+                            className="w-full py-3 rounded-2xl bg-white/5 hover:bg-red-500/20 text-white/60 hover:text-red-400 font-bold flex items-center justify-center gap-2 transition-all border border-white/10 hover:border-red-500/30"
+                        >
+                            <Icon name="logout" /> Kijelentkezés
                         </button>
                     </div>
-
-                    {/* Logout Button */}
-                    <button
-                        onClick={onLogout}
-                        className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                    >
-                        <Icon name="logout" /> Kijelentkezés
-                    </button>
-
                 </div>
             </div>
 
