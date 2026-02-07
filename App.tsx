@@ -71,8 +71,11 @@ export default function App() {
 
   if (page === 'AUTH') return <AuthScreen onLogin={(u) => { setUser(u); setPage('DASHBOARD'); }} />;
 
+  // Get theme class based on active championship
+  const themeClass = activeChamp?.theme ? `theme-${activeChamp.theme}` : 'theme-blue';
+
   return (
-    <div className="min-h-screen bg-background-dark text-white font-sans selection:bg-primary selection:text-white pb-20 md:pb-0">
+    <div className={`min-h-screen bg-background-dark text-white font-sans selection:bg-primary selection:text-white pb-20 md:pb-0 ${themeClass}`}>
       {/* Top Navigation */}
       <nav className="sticky top-0 z-50 w-full border-b border-border-dark bg-[#111a22]/95 backdrop-blur-md px-4 md:px-10 py-3 shadow-lg relative">
         <div className="flex items-center justify-between">
@@ -310,7 +313,7 @@ export default function App() {
       {showProfile && user && <ProfileModal user={user} onClose={() => setShowProfile(false)} onLogout={handleLogout} />}
       {showAchievements && user && <AchievementsModal userId={user.id} onClose={() => setShowAchievements(false)} />}
       {showStats && user && <StatsModal userId={user.id} onClose={() => setShowStats(false)} />}
-      {showAdmin && user && <AdminPanel user={user} championship={activeChamp || undefined} onClose={() => setShowAdmin(false)} />}
+      {showAdmin && user && <AdminPanel user={user} championship={activeChamp || undefined} onClose={() => setShowAdmin(false)} onThemeChange={(theme) => { if (activeChamp) setActiveChamp({ ...activeChamp, theme: theme as Championship['theme'] }); }} />}
     </div>
   );
 }

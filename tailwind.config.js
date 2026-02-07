@@ -10,7 +10,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: "#137fec", // Neon Blue
+        primary: "var(--theme-color)", // Dynamic theme color
         accent: "#39ff14",  // Neon Green
         background: {
           light: "#f6f7f8",

@@ -4,6 +4,116 @@
 
 :root {
   color-scheme: dark;
+  --theme-color: #137fec;
+  --theme-color-rgb: 19, 127, 236;
+}
+
+/* Theme color classes */
+.theme-blue {
+  --theme-color: #137fec;
+  --theme-color-rgb: 19, 127, 236;
+}
+
+.theme-green {
+  --theme-color: #10b981;
+  --theme-color-rgb: 16, 185, 129;
+}
+
+.theme-purple {
+  --theme-color: #8b5cf6;
+  --theme-color-rgb: 139, 92, 246;
+}
+
+.theme-orange {
+  --theme-color: #f59e0b;
+  --theme-color-rgb: 245, 158, 11;
+}
+
+.theme-red {
+  --theme-color: #ef4444;
+  --theme-color-rgb: 239, 68, 68;
+}
+
+/* Override hardcoded blue colors with theme color */
+.bg-\[\#137fec\] {
+  background-color: var(--theme-color) !important;
+}
+
+.text-\[\#137fec\] {
+  color: var(--theme-color) !important;
+}
+
+.border-\[\#137fec\] {
+  border-color: var(--theme-color) !important;
+}
+
+.border-\[\#137fec\]\/50 {
+  border-color: rgba(var(--theme-color-rgb), 0.5) !important;
+}
+
+.border-\[\#137fec\]\/30 {
+  border-color: rgba(var(--theme-color-rgb), 0.3) !important;
+}
+
+.ring-\[\#137fec\]\/20 {
+  --tw-ring-color: rgba(var(--theme-color-rgb), 0.2) !important;
+}
+
+.bg-\[\#137fec\]\/10 {
+  background-color: rgba(var(--theme-color-rgb), 0.1) !important;
+}
+
+.bg-\[\#137fec\]\/20 {
+  background-color: rgba(var(--theme-color-rgb), 0.2) !important;
+}
+
+.bg-\[\#137fec\]\/5 {
+  background-color: rgba(var(--theme-color-rgb), 0.05) !important;
+}
+
+.shadow-\[\#137fec\]\/20 {
+  --tw-shadow-color: rgba(var(--theme-color-rgb), 0.2) !important;
+}
+
+.shadow-\[\#137fec\]\/25 {
+  --tw-shadow-color: rgba(var(--theme-color-rgb), 0.25) !important;
+}
+
+.shadow-\[\#137fec\]\/40 {
+  --tw-shadow-color: rgba(var(--theme-color-rgb), 0.4) !important;
+}
+
+.hover\:border-\[\#137fec\]\/30:hover {
+  border-color: rgba(var(--theme-color-rgb), 0.3) !important;
+}
+
+.hover\:bg-\[\#137fec\]\/5:hover {
+  background-color: rgba(var(--theme-color-rgb), 0.05) !important;
+}
+
+.hover\:bg-\[\#137fec\]\/20:hover {
+  background-color: rgba(var(--theme-color-rgb), 0.2) !important;
+}
+
+.focus\:border-\[\#137fec\]:focus {
+  border-color: var(--theme-color) !important;
+}
+
+.group-hover\:text-\[\#137fec\]:hover {
+  color: var(--theme-color) !important;
+}
+
+.group-hover\:border-\[\#137fec\]\/30:hover {
+  border-color: rgba(var(--theme-color-rgb), 0.3) !important;
+}
+
+.group-hover\:bg-\[\#137fec\]\/20:hover {
+  background-color: rgba(var(--theme-color-rgb), 0.2) !important;
+}
+
+/* Also override gradient start colors */
+.from-\[\#137fec\] {
+  --tw-gradient-from: var(--theme-color) !important;
 }
 
 body {

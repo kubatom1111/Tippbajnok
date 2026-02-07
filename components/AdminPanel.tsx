@@ -10,9 +10,10 @@ interface AdminPanelProps {
     user: User;
     championship?: Championship;
     onClose: () => void;
+    onThemeChange?: (theme: string) => void;
 }
 
-export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
+export function AdminPanel({ user, championship, onClose, onThemeChange }: AdminPanelProps) {
     const [matches, setMatches] = useState<Match[]>([]);
     const [allChamps, setAllChamps] = useState<Championship[]>([]);
     const [selectedChamp, setSelectedChamp] = useState<string>(championship?.id || '');
@@ -41,6 +42,7 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
         try {
             await db.updateChampTheme(selectedChamp, themeId);
             setCurrentTheme(themeId);
+            onThemeChange?.(themeId); // Notify parent to update theme immediately
         } catch (e) {
             console.error('Theme update failed:', e);
         }
@@ -73,29 +75,33 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
 
     useEffect(() => {
         const load = async () => {
+            // Ensure selectedChamp is set from championship prop if not already set
+            if (championship?.id && !selectedChamp) {
+                setSelectedChamp(championship.id);
+            }
+
             if (isGlobalAdmin) {
                 // Global admin sees all championships
                 const champs = await db.getMyChamps(user.id);
-                // For now, we'll just load user's championships
-                // In a full implementation, you'd have a getAllChampionships function
                 setAllChamps(champs);
-                if (champs.length > 0 && !selectedChamp) {
+                if (champs.length > 0 && !selectedChamp && !championship?.id) {
                     setSelectedChamp(champs[0].id);
                     setCurrentTheme(champs[0].theme || 'blue');
                 }
             }
 
-            if (selectedChamp) {
-                const m = await db.getMatches(selectedChamp);
+            const champIdToLoad = selectedChamp || championship?.id;
+            if (champIdToLoad) {
+                const m = await db.getMatches(champIdToLoad);
                 setMatches(m);
                 // Get theme for selected champ
-                const champ = allChamps.find(c => c.id === selectedChamp);
+                const champ = allChamps.find(c => c.id === champIdToLoad);
                 if (champ) setCurrentTheme(champ.theme || 'blue');
             }
             setLoading(false);
         };
         load();
-    }, [user.id, selectedChamp, isGlobalAdmin]);
+    }, [user.id, selectedChamp, isGlobalAdmin, championship?.id]);
 
     if (!canAccess) {
         return (
