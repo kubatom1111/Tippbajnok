@@ -360,6 +360,38 @@ export const updateChampTheme = async (champId: string, theme: string): Promise<
     .eq('id', champId);
   if (error) throw error;
 };
+
+// Delete a match and its related bets
+export const deleteMatch = async (matchId: string): Promise<void> => {
+  // First delete related bets
+  await supabase.from('bets').delete().eq('match_id', matchId);
+  // Then delete the match
+  const { error } = await supabase.from('matches').delete().eq('id', matchId);
+  if (error) throw error;
+};
+
+// Delete a championship and all related data (matches, bets, chat messages)
+export const deleteChampionship = async (champId: string): Promise<void> => {
+  // Get all matches for this championship
+  const { data: matches } = await supabase.from('matches').select('id').eq('championship_id', champId);
+  
+  // Delete bets for each match
+  if (matches && matches.length > 0) {
+    const matchIds = matches.map(m => m.id);
+    await supabase.from('bets').delete().in('match_id', matchIds);
+  }
+  
+  // Delete all matches
+  await supabase.from('matches').delete().eq('championship_id', champId);
+  
+  // Delete chat messages
+  await supabase.from('chat_messages').delete().eq('championship_id', champId);
+  
+  // Finally delete the championship
+  const { error } = await supabase.from('championships').delete().eq('id', champId);
+  if (error) throw error;
+};
+
 export const getMatches = async (champId: string): Promise<Match[]> => {
   const { data, error } = await supabase.from('matches')
     .select('*')

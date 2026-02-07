@@ -20,6 +20,8 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
     const [tab, setTab] = useState<'matches' | 'results' | 'settings'>('matches');
     const [currentTheme, setCurrentTheme] = useState<string>(championship?.theme || 'blue');
     const [saving, setSaving] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null); // matchId or 'champ'
+    const [deleting, setDeleting] = useState(false);
 
     const isGlobalAdmin = user.isGlobalAdmin === true;
     const isChampAdmin = championship?.adminId === user.id;
@@ -43,6 +45,30 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
             console.error('Theme update failed:', e);
         }
         setSaving(false);
+    };
+
+    const handleDeleteMatch = async (matchId: string) => {
+        setDeleting(true);
+        try {
+            await db.deleteMatch(matchId);
+            setMatches(prev => prev.filter(m => m.id !== matchId));
+        } catch (e) {
+            console.error('Delete failed:', e);
+        }
+        setDeleting(false);
+        setDeleteConfirm(null);
+    };
+
+    const handleDeleteChampionship = async () => {
+        if (!selectedChamp) return;
+        setDeleting(true);
+        try {
+            await db.deleteChampionship(selectedChamp);
+            onClose(); // Close panel and return to home
+        } catch (e) {
+            console.error('Delete championship failed:', e);
+        }
+        setDeleting(false);
     };
 
     useEffect(() => {
@@ -163,9 +189,36 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
                                                     {new Date(match.startTime).toLocaleString('hu-HU')}
                                                 </div>
                                             </div>
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${match.status === 'FINISHED' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                                                {match.status === 'FINISHED' ? 'Befejezett' : 'Folyamatban'}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${match.status === 'FINISHED' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                                                    {match.status === 'FINISHED' ? 'Befejezett' : 'Folyamatban'}
+                                                </span>
+                                                {deleteConfirm === match.id ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            onClick={() => handleDeleteMatch(match.id)}
+                                                            disabled={deleting}
+                                                            className="px-2 py-1 bg-red-500 text-white text-xs rounded-lg font-bold hover:bg-red-600 disabled:opacity-50"
+                                                        >
+                                                            {deleting ? '...' : 'Törlés'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDeleteConfirm(null)}
+                                                            className="px-2 py-1 bg-slate-600 text-white text-xs rounded-lg font-bold hover:bg-slate-500"
+                                                        >
+                                                            Mégse
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => setDeleteConfirm(match.id)}
+                                                        className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                        title="Meccs törlése"
+                                                    >
+                                                        <Icon name="delete" className="text-lg" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 ))
@@ -212,8 +265,8 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
                                             onClick={() => handleThemeChange(theme.id)}
                                             disabled={saving}
                                             className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${currentTheme === theme.id
-                                                    ? 'border-white bg-white/10'
-                                                    : 'border-transparent hover:bg-white/5'
+                                                ? 'border-white bg-white/10'
+                                                : 'border-transparent hover:bg-white/5'
                                                 }`}
                                         >
                                             <div
@@ -234,6 +287,49 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
                                         <div className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                                         Mentés...
                                     </div>
+                                )}
+                            </div>
+
+                            {/* Danger Zone */}
+                            <div className="bg-red-500/10 p-5 rounded-xl border border-red-500/30">
+                                <h4 className="font-bold text-red-400 mb-3 flex items-center gap-2">
+                                    <Icon name="warning" /> Veszélyzóna
+                                </h4>
+                                <p className="text-text-muted text-sm mb-4">
+                                    A bajnokság törlése visszavonhatatlan. Minden meccs, tipp és chat üzenet törlődik.
+                                </p>
+                                {deleteConfirm === 'champ' ? (
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={handleDeleteChampionship}
+                                            disabled={deleting}
+                                            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold disabled:opacity-50 flex items-center gap-2"
+                                        >
+                                            {deleting ? (
+                                                <>
+                                                    <div className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                    Törlés...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Icon name="delete_forever" /> Véglegesen törlöm
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => setDeleteConfirm(null)}
+                                            className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-xl font-bold"
+                                        >
+                                            Mégse
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setDeleteConfirm('champ')}
+                                        className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl font-bold flex items-center gap-2 transition-colors"
+                                    >
+                                        <Icon name="delete" /> Bajnokság törlése
+                                    </button>
                                 )}
                             </div>
                         </div>
