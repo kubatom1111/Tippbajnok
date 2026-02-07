@@ -11,7 +11,6 @@ import { MissionsModal } from './components/MissionsModal';
 import { ProfileModal } from './components/ProfileModal';
 import { AchievementsModal } from './components/AchievementsModal';
 import { StatsModal } from './components/StatsModal';
-import { requestNotificationPermission } from './services/notifications';
 import { AdminPanel } from './components/AdminPanel';
 
 // --- Icons (Material Symbols wrapper) ---
@@ -54,9 +53,6 @@ export default function App() {
 
         // Record daily login for streak tracking
         await db.recordDailyLogin(session.id);
-
-        // Request notification permission
-        requestNotificationPermission();
       }
     }
     sync();

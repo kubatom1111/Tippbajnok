@@ -277,13 +277,34 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                                     <div className="text-center py-4">
                                         <p className="text-[#92adc9] mb-4 font-medium">A tippelés lezárult erre a mérkőzésre.</p>
                                         {hasBet && (
-                                            <div className="bg-[#101922] border border-[#233648] rounded-xl p-4 max-w-lg mx-auto mb-6 text-left">
-                                                <h4 className="text-[#92adc9] font-bold uppercase tracking-wider text-xs mb-3 border-b border-[#233648] pb-2">A te tipped:</h4>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {match.questions.map(q => (
-                                                        <div key={q.id} className="flex justify-between">
-                                                            <span className="text-[#92adc9] text-xs truncate pr-2">{q.label}:</span>
-                                                            <span className="font-bold text-white text-xs">{formatAnswer(answers[q.id])}</span>
+                                            <div className="bg-gradient-to-br from-[#1a2632] to-[#0d1117] border border-[#233648] rounded-2xl overflow-hidden max-w-lg mx-auto mb-6 shadow-xl">
+                                                {/* Header */}
+                                                <div className="bg-[#137fec]/10 border-b border-[#137fec]/20 px-4 py-3 flex items-center gap-3">
+                                                    <div className="size-8 rounded-lg bg-[#137fec]/20 flex items-center justify-center">
+                                                        <Icon name="receipt_long" className="text-[#137fec] text-lg" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-white font-bold text-sm">A te tipped</h4>
+                                                        <p className="text-[#92adc9] text-[10px] uppercase tracking-wider">{match.questions.length} fogadási piac</p>
+                                                    </div>
+                                                    <div className="ml-auto">
+                                                        <span className="bg-green-500/20 text-green-400 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full flex items-center gap-1">
+                                                            <Icon name="check_circle" className="text-xs" /> Leadva
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Bet Items */}
+                                                <div className="p-4 space-y-3">
+                                                    {match.questions.map((q, idx) => (
+                                                        <div key={q.id} className="flex items-center justify-between bg-[#101922]/50 rounded-xl px-4 py-3 border border-[#233648]/50">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-[#92adc9] text-xs font-medium">{idx + 1}.</span>
+                                                                <span className="text-[#92adc9] text-sm">{q.label}</span>
+                                                            </div>
+                                                            <span className="font-black text-white bg-[#137fec]/20 text-[#137fec] px-3 py-1.5 rounded-lg text-sm border border-[#137fec]/30">
+                                                                {formatAnswer(answers[q.id])}
+                                                            </span>
                                                         </div>
                                                     ))}
                                                 </div>
