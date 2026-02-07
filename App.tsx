@@ -358,37 +358,110 @@ function DashboardHome({ user, onOpenChamp, activeTab, onTabChange }: { user: Us
       <NewsTicker />
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-900 to-[#101922] border border-border-dark shadow-2xl p-8 md:p-12">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/20 rounded-full blur-[100px] -mr-20 -mt-20 pointer-events-none"></div>
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-black text-white mb-4">Szia, {user.username}! 👋</h1>
-            <p className="text-blue-200 text-lg max-w-xl">
-              Jó látni téged! Készen állsz a mai tippekre? Nézd meg a bajnokságaidat vagy csekkold, hol állsz a világranglistán.
-            </p>
-            <div className="flex gap-4 mt-8">
-              <button onClick={() => setShowCreate(true)} className="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/25 transition-all flex items-center gap-2">
-                <Icon name="add_circle" /> Új Bajnokság
-              </button>
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
+        {/* Background decorations */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a]" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/30 rounded-full blur-[120px] -mr-32 -mt-32 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/20 rounded-full blur-[80px] -ml-16 -mb-16 pointer-events-none" />
+        <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-pink-500/10 rounded-full blur-[60px] pointer-events-none" />
+
+        {/* Gradient top border */}
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
+
+        <div className="relative z-10 p-8 md:p-12">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+            {/* Left side - Greeting */}
+            <div className="flex-1">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-4">
+                <span className="size-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-xs font-bold text-white/60 uppercase tracking-wider">Online</span>
+              </div>
+
+              <h1 className="text-4xl md:text-5xl font-black text-white mb-4 tracking-tight">
+                Szia, {user.username}! 👋
+              </h1>
+
+              <p className="text-white/60 text-lg max-w-xl leading-relaxed">
+                Jó látni téged! Készen állsz a mai tippekre? Nézd meg a bajnokságaidat vagy csekkold, hol állsz a világranglistán.
+              </p>
+
+              <div className="flex gap-3 mt-8">
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="bg-gradient-to-r from-primary to-purple-600 hover:from-primary hover:to-purple-500 text-white px-6 py-3.5 rounded-2xl font-bold shadow-lg shadow-primary/25 transition-all flex items-center gap-2 hover:scale-105 active:scale-95"
+                >
+                  <Icon name="add_circle" /> Új Bajnokság
+                </button>
+              </div>
             </div>
-          </div>
-          <div className="bg-surface-dark/50 backdrop-blur-md p-6 rounded-2xl border border-white/10 text-center min-w-[200px]">
-            <div className="text-sm text-blue-200 font-bold uppercase tracking-wider mb-1">Összpontszám</div>
-            <div className="text-5xl font-black text-primary drop-shadow-lg">
-              {globalRank.find(r => r.username === user.username)?.points || 0}
+
+            {/* Right side - Stats Cards */}
+            <div className="flex gap-4">
+              {/* Main Points Card */}
+              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 text-center min-w-[180px] relative overflow-hidden group hover:bg-white/10 transition-colors">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative">
+                  <div className="size-14 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center mx-auto mb-3 border border-primary/30">
+                    <Icon name="stars" className="text-2xl text-primary" />
+                  </div>
+                  <div className="text-5xl font-black bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent mb-1">
+                    {globalRank.find(r => r.username === user.username)?.points || 0}
+                  </div>
+                  <div className="text-xs text-white/50 font-bold uppercase tracking-wider">Összpontszám</div>
+                  <div className="text-[10px] text-white/30 mt-1">Minden bajnokságból</div>
+                </div>
+              </div>
+
+              {/* Secondary Stats */}
+              <div className="flex flex-col gap-4">
+                {/* Rank Card */}
+                <div className="bg-white/5 backdrop-blur-xl p-4 rounded-2xl border border-white/10 text-center flex-1 group hover:bg-white/10 transition-colors">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-2xl">🏆</span>
+                    <div>
+                      <div className="text-2xl font-black text-yellow-400">
+                        #{(globalRank.findIndex(r => r.username === user.username) + 1) || '-'}
+                      </div>
+                      <div className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Helyezés</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Championships Card */}
+                <div className="bg-white/5 backdrop-blur-xl p-4 rounded-2xl border border-white/10 text-center flex-1 group hover:bg-white/10 transition-colors">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-2xl">🎯</span>
+                    <div>
+                      <div className="text-2xl font-black text-white">{champs.length}</div>
+                      <div className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Bajnokság</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-white/50 mt-2">Minden bajnokságból</div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center justify-center mb-8">
-        <div className="bg-surface-dark p-1 rounded-full border border-border-dark inline-flex">
-          <button onClick={() => onTabChange('CHAMPS')} className={`px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 ${activeTab === 'CHAMPS' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white'}`}>
+        <div className="bg-[#0f172a]/80 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 inline-flex gap-1">
+          <button
+            onClick={() => onTabChange('CHAMPS')}
+            className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${activeTab === 'CHAMPS'
+              ? 'bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg shadow-primary/25'
+              : 'text-white/50 hover:text-white hover:bg-white/5'
+              }`}
+          >
             <Icon name="trophy" className="text-lg" /> Bajnokságaim
           </button>
-          <button onClick={() => onTabChange('GLOBAL')} className={`px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 ${activeTab === 'GLOBAL' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-white'}`}>
+          <button
+            onClick={() => onTabChange('GLOBAL')}
+            className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${activeTab === 'GLOBAL'
+              ? 'bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg shadow-primary/25'
+              : 'text-white/50 hover:text-white hover:bg-white/5'
+              }`}
+          >
             <Icon name="public" className="text-lg" /> Globális Ranglista
           </button>
         </div>
