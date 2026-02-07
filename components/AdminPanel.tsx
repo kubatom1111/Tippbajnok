@@ -17,11 +17,33 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
     const [allChamps, setAllChamps] = useState<Championship[]>([]);
     const [selectedChamp, setSelectedChamp] = useState<string>(championship?.id || '');
     const [loading, setLoading] = useState(true);
-    const [tab, setTab] = useState<'matches' | 'results'>('matches');
+    const [tab, setTab] = useState<'matches' | 'results' | 'settings'>('matches');
+    const [currentTheme, setCurrentTheme] = useState<string>(championship?.theme || 'blue');
+    const [saving, setSaving] = useState(false);
 
     const isGlobalAdmin = user.isGlobalAdmin === true;
     const isChampAdmin = championship?.adminId === user.id;
     const canAccess = isGlobalAdmin || isChampAdmin;
+
+    const themes = [
+        { id: 'blue', name: 'Kék', color: '#137fec', bg: 'bg-blue-500' },
+        { id: 'green', name: 'Zöld', color: '#10b981', bg: 'bg-emerald-500' },
+        { id: 'purple', name: 'Lila', color: '#8b5cf6', bg: 'bg-violet-500' },
+        { id: 'orange', name: 'Narancs', color: '#f59e0b', bg: 'bg-amber-500' },
+        { id: 'red', name: 'Piros', color: '#ef4444', bg: 'bg-red-500' },
+    ];
+
+    const handleThemeChange = async (themeId: string) => {
+        if (!selectedChamp) return;
+        setSaving(true);
+        try {
+            await db.updateChampTheme(selectedChamp, themeId);
+            setCurrentTheme(themeId);
+        } catch (e) {
+            console.error('Theme update failed:', e);
+        }
+        setSaving(false);
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -33,12 +55,16 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
                 setAllChamps(champs);
                 if (champs.length > 0 && !selectedChamp) {
                     setSelectedChamp(champs[0].id);
+                    setCurrentTheme(champs[0].theme || 'blue');
                 }
             }
 
             if (selectedChamp) {
                 const m = await db.getMatches(selectedChamp);
                 setMatches(m);
+                // Get theme for selected champ
+                const champ = allChamps.find(c => c.id === selectedChamp);
+                if (champ) setCurrentTheme(champ.theme || 'blue');
             }
             setLoading(false);
         };
@@ -108,6 +134,12 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
                     >
                         <Icon name="scoreboard" className="mr-2" /> Eredmények
                     </button>
+                    <button
+                        onClick={() => setTab('settings')}
+                        className={`flex-1 p-4 font-bold transition-colors ${tab === 'settings' ? 'text-primary border-b-2 border-primary' : 'text-text-muted'}`}
+                    >
+                        <Icon name="palette" className="mr-2" /> Beállítások
+                    </button>
                 </div>
 
                 {/* Content */}
@@ -139,7 +171,7 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
                                 ))
                             )}
                         </div>
-                    ) : (
+                    ) : tab === 'results' ? (
                         <div className="space-y-3">
                             <h3 className="text-lg font-bold text-white mb-4">Eredmények rögzítése</h3>
                             {matches.filter(m => m.status !== 'FINISHED').length === 0 ? (
@@ -159,6 +191,51 @@ export function AdminPanel({ user, championship, onClose }: AdminPanelProps) {
                                     </div>
                                 ))
                             )}
+                        </div>
+                    ) : (
+                        /* Settings Tab */
+                        <div className="space-y-6">
+                            <h3 className="text-lg font-bold text-white">Bajnokság beállítások</h3>
+
+                            {/* Theme Picker */}
+                            <div className="bg-surface-dark p-5 rounded-xl border border-border-dark">
+                                <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                                    <Icon name="palette" /> Téma szín
+                                </h4>
+                                <p className="text-text-muted text-sm mb-4">
+                                    Válaszd ki a bajnokság színét, ami a gombokban és kiemelésekben jelenik meg.
+                                </p>
+                                <div className="flex gap-3 flex-wrap">
+                                    {themes.map(theme => (
+                                        <button
+                                            key={theme.id}
+                                            onClick={() => handleThemeChange(theme.id)}
+                                            disabled={saving}
+                                            className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${currentTheme === theme.id
+                                                    ? 'border-white bg-white/10'
+                                                    : 'border-transparent hover:bg-white/5'
+                                                }`}
+                                        >
+                                            <div
+                                                className={`size-10 rounded-full ${theme.bg} shadow-lg`}
+                                                style={{ boxShadow: `0 4px 20px ${theme.color}50` }}
+                                            />
+                                            <span className={`text-xs font-bold ${currentTheme === theme.id ? 'text-white' : 'text-text-muted'}`}>
+                                                {theme.name}
+                                            </span>
+                                            {currentTheme === theme.id && (
+                                                <Icon name="check_circle" className="text-green-400 text-sm" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                                {saving && (
+                                    <div className="mt-3 text-sm text-text-muted flex items-center gap-2">
+                                        <div className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                        Mentés...
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

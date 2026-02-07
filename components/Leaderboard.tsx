@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { LeaderboardEntry, Championship } from '../types';
 import * as db from '../storage';
+import { WeeklyMVP } from '../storage';
 
 interface LeaderboardProps {
   championship: Championship;
@@ -11,6 +12,7 @@ interface LeaderboardProps {
 export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshTrigger, compact = false }) => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [weeklyMvp, setWeeklyMvp] = useState<WeeklyMVP | null>(null);
 
   useEffect(() => {
     const calculate = async () => {
@@ -48,6 +50,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
       }
 
       setEntries(Object.values(scores).sort((a, b) => b.points - a.points));
+
+      // Load Weekly MVP
+      const mvp = await db.getWeeklyMVP(championship.id);
+      setWeeklyMvp(mvp);
+
       setLoading(false);
     };
 
@@ -65,14 +72,31 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ championship, refreshT
   const getBadges = (entry: LeaderboardEntry, rank: number) => {
     const badges = [];
     if (rank === 0) badges.push({ icon: '👑', title: 'Címvédő' });
+    if (weeklyMvp && entry.userId === weeklyMvp.userId) badges.push({ icon: '⭐', title: 'Heti MVP' });
     if (entry.points > 50) badges.push({ icon: '🎖️', title: 'Veterán (50+ pont)' });
     if (entry.correctTips > 5) badges.push({ icon: '🎯', title: 'Mesterlövész (5+ találat)' });
-    // Example: "Győzelmi széria" could be calculated if we had match history per user easily available here
     return badges;
   };
 
   return (
     <div className="bg-sport-card border border-slate-800 rounded-xl overflow-hidden shadow-card">
+      {/* Weekly MVP Banner */}
+      {!compact && weeklyMvp && (
+        <div className="bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-yellow-500/20 p-4 border-b border-yellow-500/30 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⭐</span>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-yellow-400 font-bold">Heti MVP</div>
+              <div className="font-bold text-white">{weeklyMvp.username}</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-lg font-black text-yellow-400">{weeklyMvp.weeklyPoints} pont</div>
+            <div className="text-[10px] text-yellow-400/70">{weeklyMvp.weeklyCorrect} találat ezen a héten</div>
+          </div>
+        </div>
+      )}
+
       <table className="w-full text-left border-collapse">
         <thead className={`${headerClass} ${headerTextSize}`}>
           <tr>

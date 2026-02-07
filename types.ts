@@ -61,6 +61,7 @@ export interface Championship {
   joinCode: string;
   adminId: string;
   participants: string[];
+  theme?: 'blue' | 'green' | 'purple' | 'orange' | 'red';
 }
 
 export interface LeaderboardEntry {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { User } from '../types';
 import * as db from '../storage';
 
@@ -11,6 +11,8 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
     const progress = (user.xp / nextLevelXp) * 100;
 
     const [stats, setStats] = useState({ points: 0, winRate: 0, streak: 0 });
+    const [showShareCard, setShowShareCard] = useState(false);
+    const cardRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const loadStats = async () => {
@@ -20,6 +22,100 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
         };
         loadStats();
     }, [user.id]);
+
+    const handleShare = async () => {
+        setShowShareCard(true);
+    };
+
+    const handleDownloadCard = async () => {
+        if (!cardRef.current) return;
+
+        // Use html2canvas-like approach with a simple canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 280;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Background gradient
+        const gradient = ctx.createLinearGradient(0, 0, 400, 280);
+        gradient.addColorStop(0, '#1a365d');
+        gradient.addColorStop(1, '#312e81');
+        ctx.fillStyle = gradient;
+        ctx.roundRect(0, 0, 400, 280, 16);
+        ctx.fill();
+
+        // Top accent bar
+        const topGradient = ctx.createLinearGradient(0, 0, 400, 0);
+        topGradient.addColorStop(0, '#2563eb');
+        topGradient.addColorStop(1, '#7c3aed');
+        ctx.fillStyle = topGradient;
+        ctx.fillRect(0, 0, 400, 8);
+
+        // Avatar circle
+        ctx.fillStyle = '#2563eb';
+        ctx.beginPath();
+        ctx.arc(200, 70, 40, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Avatar letter
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 32px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(user.username[0].toUpperCase(), 200, 72);
+
+        // Username
+        ctx.font = 'bold 24px system-ui';
+        ctx.fillText(user.username, 200, 130);
+
+        // Rank badge
+        ctx.font = 'bold 12px system-ui';
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText(`🏅 ${user.rank.toUpperCase()}`, 200, 155);
+
+        // Stats row
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.roundRect(20, 175, 360, 60, 12);
+        ctx.fill();
+
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 20px system-ui';
+        // Points
+        ctx.fillText(`${stats.points}`, 80, 200);
+        ctx.font = '10px system-ui';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('PONT', 80, 220);
+
+        // Win Rate
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 20px system-ui';
+        ctx.fillText(`${stats.winRate}%`, 200, 200);
+        ctx.font = '10px system-ui';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('GYŐZELMI %', 200, 220);
+
+        // Streak
+        ctx.fillStyle = '#f97316';
+        ctx.font = 'bold 20px system-ui';
+        ctx.fillText(`${stats.streak}🔥`, 320, 200);
+        ctx.font = '10px system-ui';
+        ctx.fillStyle = '#fdba74';
+        ctx.fillText('STREAK', 320, 220);
+
+        // Footer
+        ctx.font = '10px system-ui';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('Tippbajnok • tippbajnok.vercel.app', 200, 260);
+
+        // Download
+        const link = document.createElement('a');
+        link.download = `${user.username}_tippbajnok.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+
+        setShowShareCard(false);
+    };
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -80,6 +176,16 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
                         </div>
                     </div>
 
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 mb-4">
+                        <button
+                            onClick={handleShare}
+                            className="flex-1 py-3 rounded-xl bg-primary/20 hover:bg-primary/30 text-primary font-bold flex items-center justify-center gap-2 transition-colors"
+                        >
+                            <Icon name="share" /> Megosztás
+                        </button>
+                    </div>
+
                     {/* Logout Button */}
                     <button
                         onClick={onLogout}
@@ -90,6 +196,55 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
 
                 </div>
             </div>
+
+            {/* Share Card Modal */}
+            {showShareCard && (
+                <div className="fixed inset-0 bg-black/90 z-[110] flex flex-col items-center justify-center p-4 animate-in fade-in">
+                    <div ref={cardRef} className="w-[400px] h-[280px] bg-gradient-to-br from-slate-800 to-indigo-900 rounded-2xl p-6 relative overflow-hidden mb-4">
+                        <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-blue-500 to-purple-500" />
+                        <div className="flex flex-col items-center pt-4">
+                            <div className="size-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-3xl font-black text-white mb-3">
+                                {user.username[0].toUpperCase()}
+                            </div>
+                            <h3 className="text-2xl font-black text-white mb-1">{user.username}</h3>
+                            <span className="text-yellow-400 text-sm font-bold mb-4">🏅 {user.rank.toUpperCase()}</span>
+
+                            <div className="flex gap-8 bg-black/30 rounded-xl px-6 py-3">
+                                <div className="text-center">
+                                    <div className="text-xl font-black text-white">{stats.points}</div>
+                                    <div className="text-[10px] text-slate-400 uppercase">Pont</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-xl font-black text-white">{stats.winRate}%</div>
+                                    <div className="text-[10px] text-slate-400 uppercase">Győzelem</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-xl font-black text-orange-400">{stats.streak}🔥</div>
+                                    <div className="text-[10px] text-orange-300 uppercase">Streak</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="absolute bottom-3 inset-x-0 text-center text-[10px] text-slate-500">
+                            Tippbajnok • tippbajnok.vercel.app
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleDownloadCard}
+                            className="px-6 py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold flex items-center gap-2"
+                        >
+                            <Icon name="download" /> Kép letöltése
+                        </button>
+                        <button
+                            onClick={() => setShowShareCard(false)}
+                            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold"
+                        >
+                            Bezárás
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

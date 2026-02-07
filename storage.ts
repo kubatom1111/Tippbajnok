@@ -348,10 +348,18 @@ export const getMyChamps = async (userId: string): Promise<Championship[]> => {
     name: d.name,
     joinCode: d.join_code,
     adminId: d.admin_id,
-    participants: d.participants
+    participants: d.participants,
+    theme: d.theme || 'blue'
   }));
 };
 
+// Update championship theme
+export const updateChampTheme = async (champId: string, theme: string): Promise<void> => {
+  const { error } = await supabase.from('championships')
+    .update({ theme })
+    .eq('id', champId);
+  if (error) throw error;
+};
 export const getMatches = async (champId: string): Promise<Match[]> => {
   const { data, error } = await supabase.from('matches')
     .select('*')
@@ -406,6 +414,48 @@ export const fetchBetsForMatch = async (matchId: string): Promise<Bet[]> => {
     timestamp: d.timestamp
   }));
 }
+
+// --- Match Bets Stats (for "Mások tippjei" feature) ---
+export type BetDistribution = {
+  questionId: string;
+  distribution: { answer: string; count: number; percentage: number }[];
+  totalBets: number;
+};
+
+export const getMatchBetsStats = async (matchId: string): Promise<BetDistribution[]> => {
+  const bets = await fetchBetsForMatch(matchId);
+  if (bets.length === 0) return [];
+
+  // Get all unique question IDs from the first bet
+  const questionIds = Object.keys(bets[0]?.answers || {});
+
+  const stats: BetDistribution[] = questionIds.map(qId => {
+    const answerCounts: Record<string, number> = {};
+
+    bets.forEach(bet => {
+      const answer = String(bet.answers[qId] || '');
+      if (answer) {
+        answerCounts[answer] = (answerCounts[answer] || 0) + 1;
+      }
+    });
+
+    const distribution = Object.entries(answerCounts)
+      .map(([answer, count]) => ({
+        answer,
+        count,
+        percentage: Math.round((count / bets.length) * 100)
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      questionId: qId,
+      distribution,
+      totalBets: bets.length
+    };
+  });
+
+  return stats;
+};
 
 export const fetchResults = async (): Promise<MatchResult[]> => {
   const { data } = await supabase.from('results').select('*');
@@ -517,6 +567,84 @@ export const getGlobalStats = async () => {
 
   return Object.values(stats).sort((a, b) => b.points - a.points);
 };
+
+// --- Weekly MVP ---
+export type WeeklyMVP = {
+  userId: string;
+  username: string;
+  weeklyPoints: number;
+  weeklyCorrect: number;
+};
+
+export const getWeeklyMVP = async (champId: string): Promise<WeeklyMVP | null> => {
+  // Get current week boundaries (Monday to Sunday)
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  // Get finished matches this week in this championship
+  const { data: matches } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('championship_id', champId)
+    .eq('status', 'FINISHED')
+    .gte('start_time', monday.toISOString())
+    .lte('start_time', sunday.toISOString());
+
+  if (!matches || matches.length === 0) return null;
+
+  const { data: results } = await supabase.from('results').select('*');
+  const { data: bets } = await supabase.from('bets').select('*');
+  const { data: users } = await supabase.from('users').select('id, username');
+
+  if (!results || !bets || !users) return null;
+
+  const userMap: Record<string, string> = {};
+  users.forEach(u => { userMap[u.id] = u.username; });
+
+  const weeklyStats: Record<string, { points: number; correct: number }> = {};
+
+  matches.forEach((m: any) => {
+    const res = results.find((r: any) => r.match_id === m.id);
+    if (!res) return;
+
+    const matchBets = bets.filter((b: any) => b.match_id === m.id);
+    matchBets.forEach((b: any) => {
+      if (!weeklyStats[b.user_id]) {
+        weeklyStats[b.user_id] = { points: 0, correct: 0 };
+      }
+
+      if (m.questions) {
+        (m.questions as any[]).forEach(q => {
+          const betAns = String(b.answers[q.id]);
+          const resAns = String(res.answers[q.id]);
+
+          if (betAns.includes('-') && resAns.includes('-')) {
+            const p = calculateSoccerPoints(betAns, resAns);
+            weeklyStats[b.user_id].points += p;
+            if (p > 0) weeklyStats[b.user_id].correct++;
+          } else if (betAns === resAns) {
+            weeklyStats[b.user_id].points += q.points;
+            weeklyStats[b.user_id].correct++;
+          }
+        });
+      }
+    });
+  });
+
+  const sorted = Object.entries(weeklyStats)
+    .map(([userId, s]) => ({ userId, username: userMap[userId] || 'Ismeretlen', weeklyPoints: s.points, weeklyCorrect: s.correct }))
+    .sort((a, b) => b.weeklyPoints - a.weeklyPoints);
+
+  return sorted.length > 0 ? sorted[0] : null;
+};
+
 // --- Stats Cache ---
 const statsCache: Map<string, { data: any; expiry: number }> = new Map();
 const STATS_CACHE_TTL = 30 * 1000; // 30 seconds

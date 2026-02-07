@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Match, QuestionType, User } from '../types';
 import * as db from '../storage';
+import { BetDistribution } from '../storage';
 
 interface MatchListProps {
     matches: Match[];
@@ -51,6 +52,10 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
     const [adminMode, setAdminMode] = useState(false);
     const [resultAnswers, setResultAnswers] = useState<any>({});
 
+    // Bet Distribution State (for "Mások tippjei")
+    const [betsStats, setBetsStats] = useState<BetDistribution[]>([]);
+    const [showBetsStats, setShowBetsStats] = useState(false);
+
     const start = new Date(match.startTime);
     const isLocked = new Date() > start;
     const isFinished = match.status === 'FINISHED';
@@ -84,6 +89,12 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                     match.questions.forEach(q => { if (String(myBet.answers[q.id]) === String(result.answers[q.id])) p += q.points; });
                     setPoints(p);
                 }
+            }
+
+            // 3. Load Bet Stats for finished or locked matches
+            if (isLocked || isFinished) {
+                const stats = await db.getMatchBetsStats(match.id);
+                setBetsStats(stats);
             }
         }
         init();
@@ -276,6 +287,52 @@ const InlineMatchCard: React.FC<{ match: Match, user: User, isAdmin: boolean, re
                                                         </div>
                                                     ))}
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {/* Mások tippjei Section */}
+                                        {betsStats.length > 0 && (
+                                            <div className="mt-4">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setShowBetsStats(!showBetsStats); }}
+                                                    className="text-[#137fec] text-sm font-bold flex items-center justify-center gap-1 mx-auto hover:underline"
+                                                >
+                                                    <Icon name={showBetsStats ? "expand_less" : "expand_more"} className="text-base" />
+                                                    {showBetsStats ? 'Elrejtés' : 'Mások tippjei'} ({betsStats[0]?.totalBets || 0} tipp)
+                                                </button>
+
+                                                {showBetsStats && (
+                                                    <div className="mt-4 bg-[#0d1117] border border-[#233648] rounded-xl p-4 text-left animate-in slide-in-from-top-2">
+                                                        <h4 className="text-[#92adc9] font-bold uppercase tracking-wider text-xs mb-4 flex items-center gap-2">
+                                                            <Icon name="groups" /> Tipp megoszlás
+                                                        </h4>
+                                                        <div className="space-y-4">
+                                                            {match.questions.map((q, qIdx) => {
+                                                                const statForQ = betsStats.find(s => s.questionId === q.id);
+                                                                if (!statForQ) return null;
+                                                                return (
+                                                                    <div key={q.id}>
+                                                                        <div className="text-xs text-[#92adc9] mb-2 font-medium">{q.label}</div>
+                                                                        <div className="space-y-1">
+                                                                            {statForQ.distribution.map((d, dIdx) => (
+                                                                                <div key={dIdx} className="flex items-center gap-2">
+                                                                                    <div className="w-20 text-xs text-white truncate font-medium">{formatAnswer(d.answer)}</div>
+                                                                                    <div className="flex-1 h-5 bg-[#1a2632] rounded-full overflow-hidden">
+                                                                                        <div
+                                                                                            className={`h-full rounded-full transition-all ${dIdx === 0 ? 'bg-[#137fec]' : 'bg-[#233648]'}`}
+                                                                                            style={{ width: `${d.percentage}%` }}
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div className="w-12 text-xs text-[#92adc9] text-right">{d.percentage}%</div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
