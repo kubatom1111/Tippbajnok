@@ -9,6 +9,10 @@ import { InviteModal } from './components/InviteModal';
 import { RulesModal } from './components/RulesModal';
 import { MissionsModal } from './components/MissionsModal';
 import { ProfileModal } from './components/ProfileModal';
+import { AchievementsModal } from './components/AchievementsModal';
+import { StatsModal } from './components/StatsModal';
+import { requestNotificationPermission } from './services/notifications';
+import { AdminPanel } from './components/AdminPanel';
 
 // --- Icons (Material Symbols wrapper) ---
 const Icon = ({ name, className = "" }: { name: string, className?: string }) => (
@@ -25,6 +29,9 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   // Reload user data (e.g. after gaining XP)
   const handleUserUpdate = () => {
@@ -38,11 +45,18 @@ export default function App() {
     if (u) { setUser(u); setPage('DASHBOARD'); }
     else setPage('AUTH');
 
-    // 2. Background Sync (Data Consistency)
+    // 2. Background Sync (Data Consistency) + Daily Login Recording
     const sync = async () => {
-      if (db.getSession()) {
+      const session = db.getSession();
+      if (session) {
         const fresh = await db.refreshSession();
         if (fresh) setUser(fresh);
+
+        // Record daily login for streak tracking
+        await db.recordDailyLogin(session.id);
+
+        // Request notification permission
+        requestNotificationPermission();
       }
     }
     sync();
@@ -85,6 +99,17 @@ export default function App() {
               <button onClick={() => setShowMissions(true)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 text-text-muted hover:text-white`}>
                 <Icon name="assignment" className="text-lg" /> Küldetések
               </button>
+              <button onClick={() => setShowAchievements(true)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 text-text-muted hover:text-white`}>
+                <Icon name="emoji_events" className="text-lg" /> Jelvények
+              </button>
+              <button onClick={() => setShowStats(true)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 text-text-muted hover:text-white`}>
+                <Icon name="bar_chart" className="text-lg" /> Statisztikák
+              </button>
+              {(user?.isGlobalAdmin || (activeChamp && activeChamp.adminId === user?.id)) && (
+                <button onClick={() => setShowAdmin(true)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 text-red-400 hover:text-red-300`}>
+                  <Icon name="admin_panel_settings" className="text-lg" /> Admin
+                </button>
+              )}
 
               {/* Contextual Nav Items (Only when inside a champ) */}
               {activeChamp && (
@@ -157,6 +182,26 @@ export default function App() {
               >
                 <Icon name="assignment" /> Küldetések
               </button>
+              <button
+                onClick={() => { setShowAchievements(true); setMobileMenuOpen(false); }}
+                className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 bg-surface-dark text-text-muted`}
+              >
+                <Icon name="emoji_events" /> Jelvények
+              </button>
+              <button
+                onClick={() => { setShowStats(true); setMobileMenuOpen(false); }}
+                className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 bg-surface-dark text-text-muted`}
+              >
+                <Icon name="bar_chart" /> Statisztikák
+              </button>
+              {(user?.isGlobalAdmin || (activeChamp && activeChamp.adminId === user?.id)) && (
+                <button
+                  onClick={() => { setShowAdmin(true); setMobileMenuOpen(false); }}
+                  className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 bg-red-500/10 text-red-400`}
+                >
+                  <Icon name="admin_panel_settings" /> Admin
+                </button>
+              )}
 
               {activeChamp && (
                 <>
@@ -234,6 +279,9 @@ export default function App() {
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
       {showMissions && <MissionsModal onClose={() => setShowMissions(false)} onUpdateUser={handleUserUpdate} />}
       {showProfile && user && <ProfileModal user={user} onClose={() => setShowProfile(false)} onLogout={handleLogout} />}
+      {showAchievements && user && <AchievementsModal userId={user.id} onClose={() => setShowAchievements(false)} />}
+      {showStats && user && <StatsModal userId={user.id} onClose={() => setShowStats(false)} />}
+      {showAdmin && user && <AdminPanel user={user} championship={activeChamp || undefined} onClose={() => setShowAdmin(false)} />}
     </div>
   );
 }

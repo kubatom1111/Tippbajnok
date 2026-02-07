@@ -96,6 +96,55 @@ export const logout = () => {
   localStorage.removeItem('ht_session');
 };
 
+// --- Login Streak ---
+
+export const recordDailyLogin = async (userId: string): Promise<void> => {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Upsert: Insert today's login, ignore if already exists
+  await supabase
+    .from('login_history')
+    .upsert(
+      { user_id: userId, login_date: today },
+      { onConflict: 'user_id,login_date', ignoreDuplicates: true }
+    );
+};
+
+export const getLoginStreak = async (userId: string): Promise<number> => {
+  // Fetch all login dates for user, sorted descending
+  const { data, error } = await supabase
+    .from('login_history')
+    .select('login_date')
+    .eq('user_id', userId)
+    .order('login_date', { ascending: false });
+
+  if (error || !data || data.length === 0) return 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let streak = 0;
+  let expectedDate = new Date(today);
+
+  for (const row of data) {
+    const loginDate = new Date(row.login_date);
+    loginDate.setHours(0, 0, 0, 0);
+
+    // Check if this login matches the expected date
+    if (loginDate.getTime() === expectedDate.getTime()) {
+      streak++;
+      // Move expected date back by 1 day
+      expectedDate.setDate(expectedDate.getDate() - 1);
+    } else if (loginDate.getTime() < expectedDate.getTime()) {
+      // Streak broken (gap in dates)
+      break;
+    }
+    // If loginDate > expectedDate, skip (duplicate or future date)
+  }
+
+  return streak;
+};
+
 export const addXp = async (amount: number): Promise<User> => {
   const session = getSession();
   if (!session) throw new Error("No session");
@@ -130,6 +179,67 @@ export const addXp = async (amount: number): Promise<User> => {
   localStorage.setItem('ht_session', JSON.stringify(updatedUser));
 
   return updatedUser;
+};
+
+// --- Achievements ---
+
+export type Achievement = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  unlocked: boolean;
+};
+
+export const getUserAchievements = async (userId: string): Promise<Achievement[]> => {
+  const stats = await getUserStats(userId);
+  const streak = await getLoginStreak(userId);
+
+  // Fetch total bets count
+  const { count: betCount } = await supabase
+    .from('bets')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  const achievements: Achievement[] = [
+    {
+      id: 'first_5p',
+      name: 'Első 5 pont',
+      description: 'Szerezd meg az első pontos találatod!',
+      icon: '🎯',
+      unlocked: stats.points >= 5,
+    },
+    {
+      id: 'streak_master',
+      name: 'Streak Mester',
+      description: '7 napos bejelentkezési sorozat',
+      icon: '🔥',
+      unlocked: streak >= 7,
+    },
+    {
+      id: 'veteran',
+      name: 'Veterán',
+      description: 'Gyűjts össze 50+ pontot',
+      icon: '⭐',
+      unlocked: stats.points >= 50,
+    },
+    {
+      id: 'century',
+      name: '100 Tipp',
+      description: 'Tippelj 100 meccsre',
+      icon: '📊',
+      unlocked: (betCount || 0) >= 100,
+    },
+    {
+      id: 'sharp',
+      name: 'Mesterlövész',
+      description: '70%+ győzelmi arány',
+      icon: '🎖️',
+      unlocked: stats.winRate >= 70 && stats.total >= 10,
+    },
+  ];
+
+  return achievements;
 };
 
 // --- Missions Persistence (Supabase) ---
@@ -469,6 +579,86 @@ export const getUserStats = async (userId: string) => {
     const winRate = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
     return { points, correct, total: totalQuestions, winRate };
   });
+};
+
+// Detailed stats for charts
+export type MatchHistoryItem = {
+  matchName: string;
+  date: string;
+  points: number;
+  correct: number;
+  total: number;
+};
+
+export const getDetailedStats = async (userId: string): Promise<{
+  history: MatchHistoryItem[];
+  totalPoints: number;
+  totalBets: number;
+  winRate: number;
+}> => {
+  const { data: bets } = await supabase.from('bets').select('*').eq('user_id', userId);
+
+  if (!bets || bets.length === 0) {
+    return { history: [], totalPoints: 0, totalBets: 0, winRate: 0 };
+  }
+
+  const matchIds = bets.map((b: any) => b.match_id);
+
+  const { data: matches } = await supabase.from('matches').select('*').in('id', matchIds).eq('status', 'FINISHED').order('start_time', { ascending: true });
+  const { data: results } = await supabase.from('results').select('*').in('match_id', matchIds);
+
+  if (!matches || !results) {
+    return { history: [], totalPoints: 0, totalBets: 0, winRate: 0 };
+  }
+
+  const history: MatchHistoryItem[] = [];
+  let totalPoints = 0;
+  let totalCorrect = 0;
+  let totalQuestions = 0;
+
+  matches.forEach((m: any) => {
+    const res = results.find((r: any) => r.match_id === m.id);
+    const bet = bets.find((b: any) => b.match_id === m.id);
+
+    if (!res || !bet || !m.questions) return;
+
+    let matchPoints = 0;
+    let matchCorrect = 0;
+    let matchTotal = 0;
+
+    (m.questions as any[]).forEach(q => {
+      matchTotal++;
+      const betAns = String(bet.answers[q.id]);
+      const resAns = String(res.answers[q.id]);
+
+      if (betAns.includes('-') && resAns.includes('-')) {
+        const p = calculateSoccerPoints(betAns, resAns);
+        matchPoints += p;
+        if (p > 0) matchCorrect++;
+      } else {
+        if (betAns === resAns) {
+          matchPoints += q.points;
+          matchCorrect++;
+        }
+      }
+    });
+
+    history.push({
+      matchName: `${m.player1} vs ${m.player2}`,
+      date: new Date(m.start_time).toLocaleDateString('hu-HU'),
+      points: matchPoints,
+      correct: matchCorrect,
+      total: matchTotal,
+    });
+
+    totalPoints += matchPoints;
+    totalCorrect += matchCorrect;
+    totalQuestions += matchTotal;
+  });
+
+  const winRate = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+
+  return { history, totalPoints, totalBets: bets.length, winRate };
 };
 
 export const getConsecutiveCorrectTips = async (userId: string): Promise<number> => {

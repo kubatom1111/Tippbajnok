@@ -12,6 +12,7 @@ export interface User {
   xp: number;
   level: number;
   rank: string;
+  isGlobalAdmin?: boolean;
 }
 
 export interface ChatMessage {

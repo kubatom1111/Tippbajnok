@@ -120,8 +120,17 @@ export function MissionsModal({ onClose, onUpdateUser }: { onClose: () => void, 
         }
 
         try {
-            await db.addXp(mission.rewardXp);
+            // Check streak for 2x XP bonus
+            const streak = await db.getLoginStreak(session.id);
+            const multiplier = streak >= 7 ? 2 : 1;
+            const xpToAdd = mission.rewardXp * multiplier;
+
+            await db.addXp(xpToAdd);
             onUpdateUser();
+
+            if (multiplier > 1) {
+                console.log(`🔥 Streak bonus! ${mission.rewardXp} x ${multiplier} = ${xpToAdd} XP`);
+            }
         } catch (e) {
             console.error("Failed to add XP:", e);
         }

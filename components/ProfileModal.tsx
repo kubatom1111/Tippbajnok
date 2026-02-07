@@ -10,12 +10,13 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
     const nextLevelXp = user.level * 100;
     const progress = (user.xp / nextLevelXp) * 100;
 
-    const [stats, setStats] = useState({ points: 0, winRate: 0 });
+    const [stats, setStats] = useState({ points: 0, winRate: 0, streak: 0 });
 
     useEffect(() => {
         const loadStats = async () => {
             const s = await db.getUserStats(user.id);
-            setStats({ points: s.points, winRate: s.winRate });
+            const streak = await db.getLoginStreak(user.id);
+            setStats({ points: s.points, winRate: s.winRate, streak });
         };
         loadStats();
     }, [user.id]);
@@ -62,14 +63,21 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
                     </div>
 
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="bg-surface-dark p-4 rounded-2xl border border-border-dark text-center">
-                            <div className="text-text-muted text-xs uppercase font-bold mb-1">Összpontszám</div>
-                            <div className="text-2xl font-black text-white">{stats.points}</div>
+                    <div className="grid grid-cols-3 gap-3 mb-6">
+                        <div className="bg-surface-dark p-3 rounded-2xl border border-border-dark text-center">
+                            <div className="text-text-muted text-[10px] uppercase font-bold mb-1">Összpont</div>
+                            <div className="text-xl font-black text-white">{stats.points}</div>
                         </div>
-                        <div className="bg-surface-dark p-4 rounded-2xl border border-border-dark text-center">
-                            <div className="text-text-muted text-xs uppercase font-bold mb-1">Győzelmi Arány</div>
-                            <div className="text-2xl font-black text-white">{stats.winRate}%</div>
+                        <div className="bg-surface-dark p-3 rounded-2xl border border-border-dark text-center">
+                            <div className="text-text-muted text-[10px] uppercase font-bold mb-1">Győzelmi %</div>
+                            <div className="text-xl font-black text-white">{stats.winRate}%</div>
+                        </div>
+                        <div className="bg-surface-dark p-3 rounded-2xl border border-orange-500/30 text-center">
+                            <div className="text-orange-400 text-[10px] uppercase font-bold mb-1 flex items-center justify-center gap-1">
+                                <Icon name="local_fire_department" className="text-sm" /> Streak
+                            </div>
+                            <div className="text-xl font-black text-orange-400">{stats.streak}</div>
+                            {stats.streak >= 7 && <div className="text-[9px] text-orange-300 mt-0.5">2x XP!</div>}
                         </div>
                     </div>
 
