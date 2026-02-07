@@ -30,83 +30,145 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
     const handleDownloadCard = async () => {
         if (!cardRef.current) return;
 
-        // Use html2canvas-like approach with a simple canvas
         const canvas = document.createElement('canvas');
         canvas.width = 400;
-        canvas.height = 280;
+        canvas.height = 360;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
         // Background gradient
-        const gradient = ctx.createLinearGradient(0, 0, 400, 280);
-        gradient.addColorStop(0, '#1a365d');
-        gradient.addColorStop(1, '#312e81');
+        const gradient = ctx.createLinearGradient(0, 0, 400, 360);
+        gradient.addColorStop(0, '#0f172a');
+        gradient.addColorStop(0.5, '#1e1b4b');
+        gradient.addColorStop(1, '#0f172a');
         ctx.fillStyle = gradient;
-        ctx.roundRect(0, 0, 400, 280, 16);
+        ctx.roundRect(0, 0, 400, 360, 24);
         ctx.fill();
 
-        // Top accent bar
-        const topGradient = ctx.createLinearGradient(0, 0, 400, 0);
-        topGradient.addColorStop(0, '#2563eb');
-        topGradient.addColorStop(1, '#7c3aed');
-        ctx.fillStyle = topGradient;
-        ctx.fillRect(0, 0, 400, 8);
+        // Border gradient effect
+        ctx.strokeStyle = '#7c3aed';
+        ctx.lineWidth = 3;
+        ctx.roundRect(1.5, 1.5, 397, 357, 24);
+        ctx.stroke();
+
+        // Top glow
+        const topGlow = ctx.createLinearGradient(0, 0, 0, 100);
+        topGlow.addColorStop(0, 'rgba(124, 58, 237, 0.2)');
+        topGlow.addColorStop(1, 'transparent');
+        ctx.fillStyle = topGlow;
+        ctx.fillRect(0, 0, 400, 100);
+
+        // Avatar glow
+        ctx.fillStyle = 'rgba(124, 58, 237, 0.3)';
+        ctx.beginPath();
+        ctx.arc(200, 80, 55, 0, Math.PI * 2);
+        ctx.fill();
 
         // Avatar circle
-        ctx.fillStyle = '#2563eb';
+        const avatarGradient = ctx.createLinearGradient(160, 40, 240, 120);
+        avatarGradient.addColorStop(0, '#3b82f6');
+        avatarGradient.addColorStop(1, '#9333ea');
+        ctx.fillStyle = avatarGradient;
         ctx.beginPath();
-        ctx.arc(200, 70, 40, 0, Math.PI * 2);
+        ctx.arc(200, 80, 45, 0, Math.PI * 2);
         ctx.fill();
+
+        // Avatar ring
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(200, 80, 47, 0, Math.PI * 2);
+        ctx.stroke();
 
         // Avatar letter
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 32px system-ui';
+        ctx.font = 'bold 36px system-ui';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(user.username[0].toUpperCase(), 200, 72);
+        ctx.fillText(user.username[0].toUpperCase(), 200, 82);
 
         // Username
-        ctx.font = 'bold 24px system-ui';
-        ctx.fillText(user.username, 200, 130);
+        ctx.font = 'bold 26px system-ui';
+        ctx.fillText(user.username, 200, 150);
 
-        // Rank badge
+        // Rank badge background
+        const rankWidth = ctx.measureText(`🏆 ${user.rank.toUpperCase()}`).width + 24;
+        ctx.fillStyle = 'rgba(234, 179, 8, 0.15)';
+        ctx.roundRect(200 - rankWidth / 2, 165, rankWidth, 26, 13);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(234, 179, 8, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.roundRect(200 - rankWidth / 2, 165, rankWidth, 26, 13);
+        ctx.stroke();
+
+        // Rank text
         ctx.font = 'bold 12px system-ui';
         ctx.fillStyle = '#fbbf24';
-        ctx.fillText(`🏅 ${user.rank.toUpperCase()}`, 200, 155);
+        ctx.fillText(`� ${user.rank.toUpperCase()}`, 200, 179);
 
-        // Stats row
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.roundRect(20, 175, 360, 60, 12);
+        // Stats cards
+        const cardY = 210;
+        const cardHeight = 70;
+
+        // Points card
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.roundRect(20, cardY, 110, cardHeight, 16);
         ctx.fill();
-
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.roundRect(20, cardY, 110, cardHeight, 16);
+        ctx.stroke();
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 20px system-ui';
-        // Points
-        ctx.fillText(`${stats.points}`, 80, 200);
-        ctx.font = '10px system-ui';
+        ctx.font = 'bold 28px system-ui';
+        ctx.fillText(`${stats.points}`, 75, cardY + 30);
+        ctx.font = 'bold 10px system-ui';
         ctx.fillStyle = '#94a3b8';
-        ctx.fillText('PONT', 80, 220);
+        ctx.fillText('PONT', 75, cardY + 52);
 
-        // Win Rate
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 20px system-ui';
-        ctx.fillText(`${stats.winRate}%`, 200, 200);
-        ctx.font = '10px system-ui';
+        // Win Rate card
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.roundRect(145, cardY, 110, cardHeight, 16);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.roundRect(145, cardY, 110, cardHeight, 16);
+        ctx.stroke();
+        ctx.fillStyle = '#4ade80';
+        ctx.font = 'bold 28px system-ui';
+        ctx.fillText(`${stats.winRate}%`, 200, cardY + 30);
+        ctx.font = 'bold 10px system-ui';
         ctx.fillStyle = '#94a3b8';
-        ctx.fillText('GYŐZELMI %', 200, 220);
+        ctx.fillText('GYŐZELEM', 200, cardY + 52);
 
-        // Streak
-        ctx.fillStyle = '#f97316';
-        ctx.font = 'bold 20px system-ui';
-        ctx.fillText(`${stats.streak}🔥`, 320, 200);
-        ctx.font = '10px system-ui';
+        // Streak card
+        const streakGradient = ctx.createLinearGradient(270, cardY, 380, cardY + cardHeight);
+        streakGradient.addColorStop(0, 'rgba(249, 115, 22, 0.2)');
+        streakGradient.addColorStop(1, 'rgba(239, 68, 68, 0.2)');
+        ctx.fillStyle = streakGradient;
+        ctx.roundRect(270, cardY, 110, cardHeight, 16);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(249, 115, 22, 0.3)';
+        ctx.roundRect(270, cardY, 110, cardHeight, 16);
+        ctx.stroke();
+        ctx.fillStyle = '#fb923c';
+        ctx.font = 'bold 28px system-ui';
+        ctx.fillText(`${stats.streak}🔥`, 325, cardY + 30);
+        ctx.font = 'bold 10px system-ui';
         ctx.fillStyle = '#fdba74';
-        ctx.fillText('STREAK', 320, 220);
+        ctx.fillText('STREAK', 325, cardY + 52);
+
+        // Footer line
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.beginPath();
+        ctx.moveTo(50, 305);
+        ctx.lineTo(350, 305);
+        ctx.stroke();
 
         // Footer
+        ctx.font = 'bold 14px system-ui';
+        ctx.fillStyle = 'white';
+        ctx.fillText('🎯 Tippbajnok', 200, 330);
         ctx.font = '10px system-ui';
         ctx.fillStyle = '#64748b';
-        ctx.fillText('Tippbajnok • tippbajnok.vercel.app', 200, 260);
+        ctx.fillText('tippbajnok.vercel.app', 200, 348);
 
         // Download
         const link = document.createElement('a');
@@ -199,46 +261,80 @@ export function ProfileModal({ user, onClose, onLogout }: { user: User, onClose:
 
             {/* Share Card Modal */}
             {showShareCard && (
-                <div className="fixed inset-0 bg-black/90 z-[110] flex flex-col items-center justify-center p-4 animate-in fade-in">
-                    <div ref={cardRef} className="w-[400px] h-[280px] bg-gradient-to-br from-slate-800 to-indigo-900 rounded-2xl p-6 relative overflow-hidden mb-4">
-                        <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-blue-500 to-purple-500" />
-                        <div className="flex flex-col items-center pt-4">
-                            <div className="size-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-3xl font-black text-white mb-3">
-                                {user.username[0].toUpperCase()}
-                            </div>
-                            <h3 className="text-2xl font-black text-white mb-1">{user.username}</h3>
-                            <span className="text-yellow-400 text-sm font-bold mb-4">🏅 {user.rank.toUpperCase()}</span>
+                <div className="fixed inset-0 bg-black/95 z-[110] flex flex-col items-center justify-center p-4 animate-in fade-in">
+                    {/* Preview Card */}
+                    <div ref={cardRef} className="w-[380px] rounded-3xl overflow-hidden shadow-2xl mb-6 relative">
+                        {/* Animated gradient border effect */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary via-purple-500 to-pink-500 animate-pulse opacity-50" />
 
-                            <div className="flex gap-8 bg-black/30 rounded-xl px-6 py-3">
-                                <div className="text-center">
-                                    <div className="text-xl font-black text-white">{stats.points}</div>
-                                    <div className="text-[10px] text-slate-400 uppercase">Pont</div>
+                        <div className="relative m-[2px] rounded-[22px] overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a]">
+                            {/* Top pattern/decoration */}
+                            <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-primary/20 to-transparent" />
+                            <div className="absolute top-4 right-4 w-24 h-24 rounded-full bg-primary/10 blur-2xl" />
+                            <div className="absolute top-8 left-8 w-16 h-16 rounded-full bg-purple-500/10 blur-xl" />
+
+                            {/* Content */}
+                            <div className="relative p-6 pt-8">
+                                {/* Avatar with glow */}
+                                <div className="flex flex-col items-center mb-6">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-primary rounded-full blur-xl opacity-50 scale-110" />
+                                        <div className="relative size-20 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-3xl font-black text-white shadow-lg ring-4 ring-white/10">
+                                            {user.username[0].toUpperCase()}
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-2xl font-black text-white mt-4 tracking-tight">{user.username}</h3>
+
+                                    {/* Rank badge */}
+                                    <div className="mt-2 px-4 py-1 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30">
+                                        <span className="text-yellow-400 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                                            <span>🏆</span> {user.rank}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="text-center">
-                                    <div className="text-xl font-black text-white">{stats.winRate}%</div>
-                                    <div className="text-[10px] text-slate-400 uppercase">Győzelem</div>
+
+                                {/* Stats */}
+                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                    <div className="bg-white/5 backdrop-blur rounded-2xl p-4 text-center border border-white/10">
+                                        <div className="text-3xl font-black text-white">{stats.points}</div>
+                                        <div className="text-[10px] text-slate-400 uppercase font-bold mt-1 tracking-wider">Pont</div>
+                                    </div>
+                                    <div className="bg-white/5 backdrop-blur rounded-2xl p-4 text-center border border-white/10">
+                                        <div className="text-3xl font-black text-green-400">{stats.winRate}%</div>
+                                        <div className="text-[10px] text-slate-400 uppercase font-bold mt-1 tracking-wider">Győzelem</div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 backdrop-blur rounded-2xl p-4 text-center border border-orange-500/30">
+                                        <div className="text-3xl font-black text-orange-400 flex items-center justify-center gap-1">
+                                            {stats.streak}<span className="text-2xl">🔥</span>
+                                        </div>
+                                        <div className="text-[10px] text-orange-300 uppercase font-bold mt-1 tracking-wider">Streak</div>
+                                    </div>
                                 </div>
-                                <div className="text-center">
-                                    <div className="text-xl font-black text-orange-400">{stats.streak}🔥</div>
-                                    <div className="text-[10px] text-orange-300 uppercase">Streak</div>
+
+                                {/* Footer watermark */}
+                                <div className="flex items-center justify-center gap-2 pt-3 border-t border-white/5">
+                                    <span className="text-xl">🎯</span>
+                                    <div className="text-center">
+                                        <div className="text-white font-bold text-sm">Tippbajnok</div>
+                                        <div className="text-slate-500 text-[9px]">tippbajnok.vercel.app</div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="absolute bottom-3 inset-x-0 text-center text-[10px] text-slate-500">
-                            Tippbajnok • tippbajnok.vercel.app
                         </div>
                     </div>
 
+                    {/* Action Buttons */}
                     <div className="flex gap-3">
                         <button
                             onClick={handleDownloadCard}
-                            className="px-6 py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold flex items-center gap-2"
+                            className="px-8 py-3.5 bg-gradient-to-r from-primary to-purple-600 hover:from-primary hover:to-purple-500 text-white rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-primary/25 transition-all hover:scale-105 active:scale-95"
                         >
                             <Icon name="download" /> Kép letöltése
                         </button>
                         <button
                             onClick={() => setShowShareCard(false)}
-                            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold"
+                            className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold transition-colors"
                         >
                             Bezárás
                         </button>
