@@ -155,7 +155,7 @@ export default function App() {
 
         {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
-          <div className="absolute top-full left-0 w-full bg-[#111a22] border-b border-border-dark shadow-2xl p-4 flex flex-col gap-4 md:hidden animate-in slide-in-from-top-2 duration-200">
+          <div className={`absolute top-full left-0 w-full bg-[#111a22] border-b border-border-dark shadow-2xl p-4 flex flex-col gap-4 md:hidden animate-in slide-in-from-top-2 duration-200 max-h-[calc(100vh-80px)] overflow-y-auto ${activeChamp ? 'pb-20' : ''}`}>
             {/* Mobile Navigation Links */}
             <div className="flex flex-col gap-2">
               <button
@@ -274,6 +274,35 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Mobile Bottom Navigation (only when inside championship) */}
+      {activeChamp && (
+        <div className="fixed bottom-0 left-0 right-0 bg-[#111a22] border-t border-border-dark md:hidden z-50 safe-area-pb">
+          <div className="flex justify-around items-center py-2">
+            <button
+              onClick={() => setPage('DASHBOARD')}
+              className={`flex flex-col items-center gap-1 px-6 py-2 rounded-xl transition-all ${page === 'DASHBOARD' ? 'text-primary' : 'text-text-muted'}`}
+            >
+              <Icon name="sports_soccer" className="text-2xl" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Meccsek</span>
+            </button>
+            <button
+              onClick={() => setPage('LEADERBOARD')}
+              className={`flex flex-col items-center gap-1 px-6 py-2 rounded-xl transition-all ${page === 'LEADERBOARD' ? 'text-primary' : 'text-text-muted'}`}
+            >
+              <Icon name="leaderboard" className="text-2xl" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Ranglista</span>
+            </button>
+            <button
+              onClick={() => setPage('CHAT')}
+              className={`flex flex-col items-center gap-1 px-6 py-2 rounded-xl transition-all ${page === 'CHAT' ? 'text-primary' : 'text-text-muted'}`}
+            >
+              <Icon name="chat" className="text-2xl" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Chat</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
